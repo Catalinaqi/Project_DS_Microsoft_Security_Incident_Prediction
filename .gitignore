@@ -1,0 +1,69 @@
+# ============================================
+#  PYTHON & ENVIRONMENTS
+# ============================================
+
+# Virtual environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Compiled
+*.so
+*.dll
+*.dylib
+
+# Cache
+*.cache/
+.cache/
+.ipynb_checkpoints/
+.mypy_cache/
+.pytest_cache/
+coverage/
+
+# Logs
+logs/
+*.log
+
+# ============================================
+#  NOTEBOOKS & OUTPUT
+# ============================================
+
+# Notebook autosaves
+.notebooks/
+notebooks/.ipynb_checkpoints/
+
+# Immagini generate
+#*.png
+#*.jpg
+#*.jpeg
+
+# Tabelle generate automaticamente
+#reports/
+#outputs/
+
+# ============================================
+#  POETRY
+# ============================================
+poetry.lock
+
+# ============================================
+#  IDE FILES
+# ============================================
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+
+# VSCode
+.vscode/
+
+# Virtual Studio settings
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
