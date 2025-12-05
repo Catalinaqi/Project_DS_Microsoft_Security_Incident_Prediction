@@ -11,18 +11,6 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Compiled
-*.so
-*.dll
-*.dylib
-
-# Cache
-*.cache/
-.cache/
-.ipynb_checkpoints/
-.mypy_cache/
-.pytest_cache/
-coverage/
 
 # Logs
 logs/
@@ -48,7 +36,7 @@ notebooks/.ipynb_checkpoints/
 # ============================================
 #  POETRY
 # ============================================
-poetry.lock
+# poetry.lock
 
 # ============================================
 #  IDE FILES
