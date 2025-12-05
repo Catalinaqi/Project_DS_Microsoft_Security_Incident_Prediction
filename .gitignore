@@ -31,13 +31,14 @@ notebooks/.ipynb_checkpoints/
 
 # Tabelle generate automaticamente
 #reports/
-#outputs/
+#out
+src/crispml/*.out
 
 # ============================================
 #  POETRY
 # ============================================
 # poetry.lock
-poetry.toml
+# poetry.toml
 
 # ============================================
 #  IDE FILES
@@ -50,9 +51,9 @@ poetry.toml
 # VSCode
 .vscode/
 
-# Virtual Studio settings
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
+# ============================================
+#  IDE FILES
+# ============================================
+data/*.csv
+
 
