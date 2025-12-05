@@ -37,6 +37,7 @@ notebooks/.ipynb_checkpoints/
 #  POETRY
 # ============================================
 # poetry.lock
+poetry.toml
 
 # ============================================
 #  IDE FILES
