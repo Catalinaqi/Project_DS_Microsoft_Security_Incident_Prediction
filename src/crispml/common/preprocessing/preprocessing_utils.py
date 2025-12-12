@@ -28,11 +28,11 @@ from src.crispml.common.preprocessing.missing_values_utils import (
     simple_imputation,
 )
 from src.crispml.common.preprocessing.outlier_utils import treat_outliers
-from src.crispml.common.preprocessing.categorical_utils import encode_categoricals
+from src.crispml.common.preprocessing.categorical_utils import encode_category_utils
 from src.crispml.common.preprocessing.scaling_utils import scale_features
 from src.crispml.common.preprocessing.split_utils import train_val_test_split
 
-from src.crispml.config.enums.enums import ProblemType
+from src.crispml.config.enums.enums_config import ProblemType
 from src.crispml.common.logging.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -90,7 +90,7 @@ def phase3_full_pipeline(
     df = drop_high_nan_columns(df)
     df = simple_imputation(df)
     df = treat_outliers(df)
-    df = encode_categoricals(df, target_col=target_col)
+    df = encode_category_utils(df, target_col=target_col)
 
     # Extract target if supervised
     y = None

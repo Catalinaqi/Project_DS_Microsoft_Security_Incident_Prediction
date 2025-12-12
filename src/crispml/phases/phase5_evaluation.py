@@ -27,11 +27,10 @@ import matplotlib.pyplot as plt
 # CONFIG
 # ---------------------------------------------------------
 from src.crispml.config.project.project_config import ProjectConfig
-from src.crispml.config.enums.enums import ProblemType
+#from src.crispml.config.enums.enums_config import ProblemType
 
 # ---------------------------------------------------------
 # METRICS
-# (nomi corretti dalle tue funzioni reali)
 # ---------------------------------------------------------
 from src.crispml.common.evaluation.metrics_classification import (
     compute_classification_metrics,
@@ -71,7 +70,14 @@ from src.crispml.common.output import (
 from src.crispml.common.logging.logging_utils import get_logger
 
 
-PHASE_NAME = "phase5_evaluation"
+# CONFIG ENUMS
+from src.crispml.config.enums.enums_config import ProblemType
+from src.crispml.config.enums.enums_config import PhaseName
+PHASE_NAME = PhaseName.PHASE5_EVALUATION
+
+#problem_type_str: str = ProblemType.name.lower()
+
+#PHASE_NAME = "phase5_evaluation"
 logger = get_logger(__name__)
 
 
@@ -99,7 +105,7 @@ def run_phase5(
 
     logger.info("=== START FASE 5 – EVALUATION (%s) ===", config.name)
 
-    problem_type = config.dataset.problem_type
+    problem_type = config.datasetConfig.problem_type
     extra = extra or {}
 
     X_test = splits.get("X_test")
@@ -122,7 +128,7 @@ def run_phase5(
 
         save_table_as_image(
             metrics_df,
-            "01_clustering_metrics.png",
+            f"{problem_type}_01_clustering_metrics.png",
             PHASE_NAME,
         )
 
@@ -136,7 +142,7 @@ def run_phase5(
 
         save_table_as_image(
             metrics_df,
-            "01_classification_metrics.png",
+            f"{problem_type}_01_classification_metrics.png",
             PHASE_NAME,
         )
 
@@ -147,15 +153,15 @@ def run_phase5(
 
             # Confusion Matrix
             fig_cm = confusion_matrix_figure(model, X_test, y_test)
-            save_figure(fig_cm, f"02_confusion_matrix_{model_name}.png", PHASE_NAME)
+            save_figure(fig_cm, f"{problem_type}_02_confusion_matrix_{model_name}.png", PHASE_NAME)
 
             # ROC curve (se possibile)
             try:
                 fig_roc, auc = roc_curve_figure(model, X_test, y_test)
-                save_figure(fig_roc, f"03_roc_curve_{model_name}.png", PHASE_NAME)
+                save_figure(fig_roc, f"{problem_type}_03_roc_curve_{model_name}.png", PHASE_NAME)
 
                 auc_df = pd.DataFrame({"model": [model_name], "AUC": [auc]})
-                save_table_as_image(auc_df, f"04_auc_table_{model_name}.png", PHASE_NAME)
+                save_table_as_image(auc_df, f"{problem_type}_04_auc_table_{model_name}.png", PHASE_NAME)
 
             except Exception as e:
                 logger.warning("[FASE5][CLASSIFICATION] ROC non disponibile → %s", e)
@@ -170,7 +176,7 @@ def run_phase5(
 
         save_table_as_image(
             metrics_df,
-            "01_regression_metrics.png",
+            f"{problem_type}_01_regression_metrics.png",
             PHASE_NAME,
         )
 
@@ -181,7 +187,7 @@ def run_phase5(
             y_pred = best_model.predict(X_test)
 
             fig_res = residuals_figure(y_test, y_pred)
-            save_figure(fig_res, f"02_residuals_{best}.png", PHASE_NAME)
+            save_figure(fig_res, f"{problem_type}_02_residuals_{best}.png", PHASE_NAME)
 
     # =========================================================
     # TIME SERIES
@@ -207,7 +213,7 @@ def run_phase5(
 
         save_table_as_image(
             metrics_df,
-            f"01_ts_metrics_{model_name}.png",
+            f"{problem_type}_01_ts_metrics_{model_name}.png",
             PHASE_NAME,
         )
 
@@ -219,7 +225,7 @@ def run_phase5(
         ax.legend()
         fig.tight_layout()
 
-        save_figure(fig, f"02_ts_forecast_{model_name}.png", PHASE_NAME)
+        save_figure(fig, f"{problem_type}_02_ts_forecast_{model_name}.png", PHASE_NAME)
 
     else:
         raise ValueError(f"[FASE5] Tipo di problema non supportato: {problem_type}")

@@ -16,7 +16,7 @@ from .style_utils import (
     FONT_LARGE,
 )
 from src.crispml.common.logging.logging_utils import get_logger
-
+from src.crispml.config.enums.enums_config import PhaseName
 logger = get_logger(__name__)
 
 
@@ -26,11 +26,12 @@ logger = get_logger(__name__)
 def save_table_as_image(
         df: pd.DataFrame,
         filename: str,
-        phase_name: str,
+        phase_name: PhaseName, # src -> enums
         dpi: int = 300,
         max_rows: int = 100,
         align: str = "left",
-        index_name: str | None = None
+        index_name: str | None = None,
+        title: str | None = None
 ):
     """
     Save a DataFrame as a high-quality table image
@@ -140,9 +141,65 @@ def save_table_as_image(
         bottom=0.05
     )
 
+    # ===========================
+    # Optional title
+    # ===========================
+    if title:
+        fig.suptitle(
+            title,
+            fontsize=14,
+            fontweight="bold",
+            y=0.98
+        )
+
     fig.savefig(path, dpi=dpi, bbox_inches="tight", pad_inches=0.1)
     plt.close(fig)
 
     logger.info("[table_utils] Image saved → %s", path)
     return path
 
+# =========================================================
+#  🔹 FUNCTION: SAVE TABLE AS CSV
+# =========================================================
+def save_table_as_csv(
+        df: pd.DataFrame,
+        filename: str,
+        phase_name: PhaseName,
+        include_index: bool = False,
+        sep: str = ",",
+        encoding: str = "utf-8"
+):
+    """
+    Save a DataFrame as a CSV file inside the correct /out/<phase> folder.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Table to export.
+    filename : str
+        File name without extension.
+    phase_name : PhaseName
+        Determines output folder location.
+    include_index : bool
+        Whether to save the dataframe index.
+    sep : str
+        Delimiter used in CSV.
+    encoding : str
+        Output text encoding.
+    """
+
+    # Ensure correct extension
+    if filename.endswith(".csv"):
+        filename = filename[:-4]
+
+    # Output folder
+    out_dir = get_output_dir(phase_name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    path = out_dir / f"{filename}.csv"
+
+    # Export
+    df.to_csv(path, index=include_index, sep=sep, encoding=encoding)
+
+    logger.info("[table_utils] CSV saved → %s", path)
+    return path

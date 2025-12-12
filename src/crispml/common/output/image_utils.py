@@ -6,9 +6,16 @@ import matplotlib.pyplot as plt
 from .path_utils import get_output_dir
 from src.crispml.common.logging.logging_utils import get_logger
 
+from src.crispml.config.enums.enums_config import PhaseName
+
 logger = get_logger(__name__)
 
-def save_figure(fig: plt.Figure, filename: str, phase_name: str, dpi: int = 150):
+def save_figure(
+        fig: plt.Figure,
+        filename: str,
+        phase_name: PhaseName, # src -> enums
+        #phase_name: str,
+        dpi: int = 150):
     out_dir = get_output_dir(phase_name)
     if not filename.lower().endswith(".png"):
         filename += ".png"

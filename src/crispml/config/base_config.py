@@ -24,7 +24,7 @@ logger.info("[base_config] CRISP-ML base configuration module loaded.")
 # ---------------------------------------------------------------------
 # ENUMS
 # ---------------------------------------------------------------------
-from src.crispml.config.enums.enums import (
+from src.crispml.config.enums.enums_config import (
     DataSourceType,
     ProblemType,
     FeatureSelectionMode,

@@ -29,5 +29,8 @@ poetry install
   Installs all the dependencies defined in `pyproject.toml` (and uses `poetry.lock` if present)
   into the `.venv` environment, so the project is ready to run.
 
-```
-```
+
+
+  ```bash
+  <tema>_<dominio>_utils
+  ```

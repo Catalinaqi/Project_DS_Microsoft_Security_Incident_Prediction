@@ -22,6 +22,8 @@ from pandas.plotting import scatter_matrix
 from sklearn.decomposition import PCA
 
 from src.crispml.common.logging.logging_utils import get_logger
+from src.crispml.common.visualization.boxplot_viz_utils import filter_columns_for_boxplot
+from src.crispml.common.visualization.scatter_matrix_viz_utils import plot_scatter_matrix
 
 logger = get_logger(__name__)
 
@@ -39,12 +41,80 @@ def plot_histograms(df: pd.DataFrame, numeric_cols) -> plt.Figure:
 # ---------------------------------------------------------
 # Boxplots
 # ---------------------------------------------------------
-def plot_boxplots(df: pd.DataFrame, numeric_cols) -> plt.Figure:
-    logger.info("[VIS][BOX] Generating boxplots...")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    df[numeric_cols].boxplot(ax=ax)
-    ax.set_title("Boxplots")
+# def plot_boxplots(df: pd.DataFrame, numeric_cols) -> plt.Figure:
+#     logger.info("[VIS][BOX] Generating boxplots...")
+#     fig, ax = plt.subplots(figsize=(10, 6))
+#     df[numeric_cols].boxplot(ax=ax)
+#     ax.set_title("Boxplots")
+#     plt.tight_layout()
+#     return fig
+
+# def plot_boxplots(df: pd.DataFrame, numeric_cols) -> plt.Figure:
+#     logger.info("[VIS][BOX] Filtering numeric columns for boxplot...")
+#
+#     filtered_cols = filter_columns_for_boxplot(df, numeric_cols)
+#
+#     if not filtered_cols:
+#         logger.info("[VIS][BOX] No suitable numeric columns for boxplot. Skipping.")
+#         return None
+#
+#     logger.info(f"[VIS][BOX] Plotting {len(filtered_cols)} filtered numeric columns...")
+#
+#     fig, ax = plt.subplots(figsize=(12, 6))
+#     df[filtered_cols].boxplot(ax=ax)
+#     ax.set_title("Filtered Boxplots")
+#     # Rotate x-axis labels
+#     plt.xticks(rotation=45, ha='right')
+#     #plt.xticks(rotation=60, ha='right')
+#     plt.tight_layout()
+#     return fig
+
+def plot_boxplots(df: pd.DataFrame, numeric_cols: list[str]) -> plt.Figure:
+    logger.info("[VIS][BOX] Filtering numeric columns for boxplot...")
+
+    filtered_cols = filter_columns_for_boxplot(df, numeric_cols)
+
+    if not filtered_cols:
+        logger.info("[VIS][BOX] No suitable numeric columns for boxplot. Skipping.")
+        return None
+
+    logger.info(f"[VIS][BOX] Using FAST boxplot rendering for {len(filtered_cols)} columns...")
+
+    # --------- Precompute boxplot statistics (FAST MODE) ---------
+    stats = []
+    for col in filtered_cols:
+        series = df[col].dropna()
+
+        q1 = series.quantile(0.25)
+        q2 = series.quantile(0.50)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+
+        # boxplot whiskers (IQR-based)
+        whisker_min = q1 - 1.5 * iqr
+        whisker_max = q3 + 1.5 * iqr
+
+        stats.append({
+            "label": col,
+            "whislo": whisker_min,
+            "q1": q1,
+            "med": q2,
+            "q3": q3,
+            "whishi": whisker_max,
+            #"fliers": []  # no outliers drawn to speed up
+            "fliers": series[(series < whisker_min) | (series > whisker_max)].tolist()
+        })
+
+    # --------- Render FAST boxplot ---------
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.bxp(stats, showfliers=False)
+    ax.set_title("Filtered Boxplots (FAST Mode)")
+
+    # Rotate labels
+    plt.xticks(rotation=45, ha='right')
+
     plt.tight_layout()
+
     return fig
 
 
@@ -72,11 +142,19 @@ def plot_corr_heatmap(df: pd.DataFrame, numeric_cols) -> plt.Figure:
 # ---------------------------------------------------------
 # Scatter Matrix
 # ---------------------------------------------------------
-def plot_scatter_matrix(df: pd.DataFrame, numeric_cols) -> plt.Figure:
-    logger.info("[VIS][SCATTER] Generating scatter matrix...")
-    fig = scatter_matrix(df[numeric_cols], figsize=(10, 10), diagonal="kde")
-    plt.tight_layout()
-    return plt.gcf()
+# def plot_scatter_matrix(df: pd.DataFrame, numeric_cols) -> plt.Figure:
+#     logger.info("[VIS][SCATTER] Generating scatter matrix...")
+#     fig = scatter_matrix(df[numeric_cols], figsize=(10, 10), diagonal="kde")
+#     plt.tight_layout()
+#     return plt.gcf()
+
+
+
+
+def generate_scatter_matrix(df, numeric_cols):
+    logger.info("[EDA] Scatter matrix step started.")
+    fig = plot_scatter_matrix(df, numeric_cols)
+    return fig
 
 
 # ---------------------------------------------------------

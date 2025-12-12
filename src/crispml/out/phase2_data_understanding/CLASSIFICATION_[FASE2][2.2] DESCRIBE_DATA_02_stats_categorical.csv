@@ -1,0 +1,16 @@
+column,count,unique,top,freq
+Timestamp,4147992,482830,2024-06-11T22:02:45.000Z,11292
+Category,4147992,19,InitialAccess,1952969
+MitreTechniques,1840888,985,T1078;T1078.004,615921
+IncidentGrade,4147992,3,BenignPositive,1752940
+ActionGrouped,1913,2,ContainAccount,1633
+ActionGranular,1913,13,update stsrefreshtokenvalidfrom timestamp.,773
+EntityType,4147992,29,Ip,929684
+EvidenceRole,4147992,2,Related,2288528
+ThreatFamily,31378,1164,CustomEnterpriseBlockOnly,2000
+ResourceType,2994,23,Virtual Machine,1523
+Roles,108675,9,Contextual,59033
+AntispamDirection,76511,5,Inbound,69624
+SuspicionLevel,649835,2,Suspicious,649454
+LastVerdict,992732,4,Suspicious,633484
+Usage,4147992,2,Public,2915437

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 # package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import FeatureSelectionMode
+from src.crispml.config.enums.enums_config import FeatureSelectionMode
 
 # package imports COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger

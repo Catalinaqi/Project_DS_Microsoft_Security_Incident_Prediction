@@ -26,7 +26,7 @@ from src.crispml.config.dataset.dataset_config import DatasetConfig
 # package imports CONFIG DATASET - BIGDATA CONFIG
 from src.crispml.config.dataset.bigdata_config import BigDataConfig
 # package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import DataSourceType
+from src.crispml.config.enums.enums_config import DataSourceType
 # package imports COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger
 
@@ -106,12 +106,21 @@ def load_dataset(
 
     # Determine if sampling is needed
     nrows = None
-    if for_eda and bigdata_cfg.sample_rows_for_eda:
+
+    # Muestra para EDA
+    if for_eda and getattr(bigdata_cfg, "eda_sample_rows", None):
         nrows = bigdata_cfg.sample_rows_for_eda
-        logger.info(
-            "[io] Applying EDA sampling: limiting to %d rows",
-            nrows,
-        )
+
+    # Muestra para entrenamiento / fase 3
+    elif not for_eda and getattr(bigdata_cfg, "train_sample_rows", None):
+        nrows = bigdata_cfg.sample_rows_for_training
+
+    # if for_eda and bigdata_cfg.sample_rows_for_eda:
+    #     nrows = bigdata_cfg.sample_rows_for_eda
+    #     logger.info(
+    #         "[io] Applying EDA sampling: limiting to %d rows",
+    #         nrows,
+    #     )
 
     # -----------------------------------------------------------------
     # Dispatch by data source type

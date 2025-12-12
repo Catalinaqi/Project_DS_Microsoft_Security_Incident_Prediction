@@ -27,26 +27,24 @@ from typing import List, Optional
 # IMPORTS (NOW FIXED AND STRUCTURED BY SUBMODULE)
 # ----------------------------------------------------------------------
 
-# package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import (
+# CONFIG ENUMS
+from src.crispml.config.enums.enums_config import (
     ProblemType,
     DataSourceType,
     FeatureSelectionMode,
 )
-# package imports CONFIG DATASET
+# CONFIG DATASET
 from src.crispml.config.dataset.dataset_config import DatasetConfig
 from src.crispml.config.dataset.feature_config import FeatureConfig
 from src.crispml.config.dataset.bigdata_config import BigDataConfig
-# package imports CONFIG MODELING
+# CONFIG MODELING
 from src.crispml.config.modeling.modeling_config import ModelingConfig
 from src.crispml.config.modeling.evaluation_config import EvaluationConfig
-# package imports CONFIG TECHNIQUES
+# CONFIG TECHNIQUES
 from src.crispml.config.techniques.techniques import TechniquesConfig
-# package imports CONFIG PROJECT CONFIG
+# CONFIG PROJECT CONFIG
 from src.crispml.config.project.project_config import ProjectConfig
-
-
-# package imports COMMON LOGGING
+# COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -211,12 +209,12 @@ def make_config(
     # --------------------------------------------------------
     config = ProjectConfig(
         name=name,
-        dataset=dataset_cfg,
-        features=features_cfg,
-        bigdata=bigdata_cfg,
-        modeling=modeling_cfg,
-        evaluation=evaluation_cfg,
-        techniques=techniques_cfg,
+        datasetConfig=dataset_cfg,
+        featureConfig=features_cfg,
+        bigDataConfig=bigdata_cfg,
+        modelingConfig=modeling_cfg,
+        evaluationConfig=evaluation_cfg,
+        techniquesConfig=techniques_cfg,
     )
 
     logger.info("[factory] ProjectConfig '%s' successfully created.", name)

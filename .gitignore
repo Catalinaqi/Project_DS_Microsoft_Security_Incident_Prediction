@@ -32,7 +32,7 @@ notebooks/.ipynb_checkpoints/
 # Tabelle generate automaticamente
 #reports/
 #out
-src/crispml/*.out
+#src/crispml/*.out
 
 # ============================================
 #  POETRY

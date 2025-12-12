@@ -39,7 +39,7 @@ from src.crispml.common.feature_selection import (
 # --- Preprocessing (Phase 3 REAL transformations) ---
 from src.crispml.common.preprocessing.missing_values_utils import drop_high_nan_columns, simple_imputation
 from src.crispml.common.preprocessing.outlier_utils import treat_outliers
-from src.crispml.common.preprocessing.categorical_utils import encode_categoricals
+from src.crispml.common.preprocessing.categorical_utils import encode_category_utils
 from src.crispml.common.preprocessing.scaling_utils import scale_features
 from src.crispml.common.preprocessing.split_utils import train_val_test_split
 from src.crispml.common.preprocessing.cleaning_utils import remove_duplicates, apply_log_transform
@@ -51,11 +51,16 @@ from src.crispml.common.output import (
     save_table_as_image,
 )
 
+
+# CONFIG
+from src.crispml.config.enums.enums_config import ProblemType
+from src.crispml.config.enums.enums_config import PhaseName
 from src.crispml.config.project.project_config import ProjectConfig
-from src.crispml.config.enums.enums import ProblemType
 from src.crispml.config.techniques import Phase3Techniques
 
-PHASE_NAME = "phase3_data_preparation"
+PHASE_NAME = PhaseName.PHASE3_DATA_PREPARATION
+
+#PHASE_NAME = "phase3_data_preparation"
 logger = get_logger(__name__)
 
 
@@ -86,7 +91,11 @@ def _plot_hist_after_cleaning(df: pd.DataFrame, numeric_cols: List[str]) -> None
     fig.suptitle("Histograms After Data Cleaning / Transformation")
     fig.tight_layout()
 
-    save_figure(fig, "01_hist_after_cleaning.png", PHASE_NAME)
+    save_figure(fig,
+                #"01_hist_after_cleaning.png",
+                f"{ProblemType.name}_01_hist_after_cleaning.png",
+                PHASE_NAME)
+
 
 
 # =====================================================================
@@ -105,7 +114,10 @@ def run_phase3(config: ProjectConfig) -> tuple[Dict[str, Any], pd.DataFrame]:
     """
 
     logger.info("=== START PHASE 3 – DATA PREPARATION (%s) ===", config.name)
-    t: Phase3Techniques = config.techniques.phase3
+
+    problem_type = config.datasetConfig.problem_type
+
+    t: Phase3Techniques = config.techniquesConfig.phase3
     df_trans: pd.DataFrame
 
 
@@ -113,10 +125,10 @@ def run_phase3(config: ProjectConfig) -> tuple[Dict[str, Any], pd.DataFrame]:
     # 3.1 – Load full dataset + Feature Selection
     # --------------------------------------------------------
     logger.info("[FASE3][3.1] Loading full dataset...")
-    df_full = load_dataset(config.dataset, config.bigdata, for_eda=False)
+    df_full = load_dataset(config.datasetConfig, config.bigDataConfig, for_eda=False)
 
     df_sel, numeric_cols, categorical_cols = select_features_auto(
-        df_full, config.dataset, config.features
+        df_full, config.datasetConfig, config.featureConfig
     )
 
     logger.info(
@@ -164,7 +176,10 @@ def run_phase3(config: ProjectConfig) -> tuple[Dict[str, Any], pd.DataFrame]:
         .sort_values("missing_percent", ascending=False)
     )
 
-    save_table_as_image(rep_missing, "02_missing_after_cleaning.png", PHASE_NAME)
+    # problem_type
+    save_table_as_image(rep_missing,
+                        f"{problem_type}_02_missing_after_cleaning.png",
+                        PHASE_NAME)
 
     # --------------------------------------------------------
     # 3.3 – DATA TRANSFORMATION (log, encoding, scaling)
@@ -188,22 +203,24 @@ def run_phase3(config: ProjectConfig) -> tuple[Dict[str, Any], pd.DataFrame]:
             df_log_info = pd.DataFrame(
                 {"column": log_cols, "skew": [skew[c] for c in log_cols]}
             )
-            save_table_as_image(df_log_info, "03_log_transformed_columns.png", PHASE_NAME)
+            save_table_as_image(df_log_info,
+                                f"{problem_type}_03_log_transformed_columns.png",
+                                PHASE_NAME)
 
     # Encoding
     if t.transformation.encoding:
 
         logger.info("[FASE3][TRANSF] Encoding categorical variables (one-hot)...")
-        df_encoded = encode_categoricals(
+        df_encoded = encode_category_utils(
             df_trans,
             encoding="onehot",
-            target_col=config.dataset.target_col,
+            target_col=config.datasetConfig.target_col,
         )
     else:
         df_encoded = df_trans
 
     # Definire X e y
-    target_col = config.dataset.target_col
+    target_col = config.datasetConfig.target_col
     if target_col and target_col in df_encoded.columns:
         X = df_encoded.drop(columns=[target_col])
         y = df_encoded[target_col].values
@@ -229,11 +246,11 @@ def run_phase3(config: ProjectConfig) -> tuple[Dict[str, Any], pd.DataFrame]:
 
     time_order = None
     if (
-            config.dataset.problem_type == ProblemType.TIME_SERIES and
-            config.dataset.time_col and
-            config.dataset.time_col in df_full.columns
+            config.datasetConfig.problem_type == ProblemType.TIME_SERIES and
+            config.datasetConfig.time_col and
+            config.datasetConfig.time_col in df_full.columns
     ):
-        time_order = pd.to_datetime(df_full[config.dataset.time_col], errors="coerce")
+        time_order = pd.to_datetime(df_full[config.datasetConfig.time_col], errors="coerce")
 
     #val_size = 0.1 if t.use_validation_split else 0.0
     val_size = 0.1 if t.formatting.train_val_test_split else 0.0
@@ -242,7 +259,7 @@ def run_phase3(config: ProjectConfig) -> tuple[Dict[str, Any], pd.DataFrame]:
     X_train, X_val, X_test, y_train, y_val, y_test = train_val_test_split(
         X_scaled,
         y,
-        problem_type=config.dataset.problem_type,
+        problem_type=config.datasetConfig.problem_type,
         test_size=0.2,
         val_size=val_size,
         random_state=42,

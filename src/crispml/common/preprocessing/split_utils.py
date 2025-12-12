@@ -2,7 +2,7 @@ from __future__ import annotations
 import numpy as np
 from typing import Tuple, Optional
 
-from src.crispml.config.enums.enums import ProblemType
+from src.crispml.config.enums.enums_config import ProblemType
 from src.crispml.common.logging.logging_utils import get_logger
 
 logger = get_logger(__name__)

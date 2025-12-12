@@ -5,7 +5,7 @@ Unified wrapper to call the correct modeling pipeline automatically.
 from __future__ import annotations
 from typing import Dict, Any
 
-from src.crispml.config.enums.enums import ProblemType
+from src.crispml.config.enums.enums_config import ProblemType
 
 from .clustering_models import run_clustering_algos
 from .classification_models import run_classification_algos

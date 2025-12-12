@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 # package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import ProblemType
+from src.crispml.config.enums.enums_config import ProblemType
 
 # package imports COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger

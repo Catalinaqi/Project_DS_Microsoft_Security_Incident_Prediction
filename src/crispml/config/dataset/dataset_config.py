@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional
 # package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import (
+from src.crispml.config.enums.enums_config import (
     DataSourceType,
     ProblemType,
 )

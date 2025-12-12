@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 # package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import ProblemType
+from src.crispml.config.enums.enums_config import ProblemType
 
 # package imports COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger
@@ -77,16 +77,23 @@ class Phase2QualityConfig:
     missing_analysis: bool = True
     outlier_detection: bool = True
     duplicates_check: bool = True
-    range_check: bool = True
+    range_check: bool = False      # NEW: Enable range checks
     inconsistencies_check: bool = True
 
     # NEW: Ranges per column
-    ranges: dict = field(default_factory=lambda: {
-        # column_name : (min_val, max_val)
-        "Age": (0, 120),
-        "Year": (1900, 2030),
-        "Amount": (0, 1_000_000),
-    })
+    ranges: dict = field(default_factory=dict)
+
+    # ranges: dict = field(default_factory=lambda: {
+    #     # column_name : (min_val, max_val)
+    #     "Age": (0, 120), # example range for Age
+    #     "Year": (1900, 2030), # example range for Year
+    #     "Amount": (0, 1_000_000),# example range for Amount
+    # })
+
+
+    # Dataset-specific inconsistency rules (optional)
+    # Example provided by the PROJECT, not by the template
+    inconsistency_rules: dict = field(default_factory=dict)
 
     def __post_init__(self):
         logger.debug("[Phase2QualityConfig] %s", self)

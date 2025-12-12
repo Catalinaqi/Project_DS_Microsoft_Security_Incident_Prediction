@@ -15,7 +15,7 @@ from .outlier_utils import treat_outliers
 from .cleaning_utils import remove_duplicates, apply_log_transform
 
 # Categorical Encoding
-from .categorical_utils import encode_categoricals
+from .categorical_utils import encode_category_utils
 
 # Scaling
 from .scaling_utils import scale_features
@@ -30,6 +30,12 @@ from .preprocessing_utils import (
     split_dataset,
 )
 
+# Data Types Utilities
+from .dtypes_utils import (
+    is_id_column,
+    get_real_numeric_columns,
+    get_categorical_columns,)
+
 __all__ = [
     # Missing values
     "drop_high_nan_columns",
@@ -43,7 +49,7 @@ __all__ = [
     "apply_log_transform",
 
     # Categorical
-    "encode_categoricals",
+    "encode_category_utils",
 
     # Scaling
     "scale_features",
@@ -55,4 +61,9 @@ __all__ = [
     "phase2_quick_clean",
     "phase3_full_pipeline",
     "split_dataset",
+
+    # Dtypes utils
+    "is_id_column",
+    "get_real_numeric_columns",
+    "get_categorical_columns",
 ]

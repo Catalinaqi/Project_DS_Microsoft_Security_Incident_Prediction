@@ -23,18 +23,18 @@ extensions for Phase 4 and Phase 5 technique configurations.
 from __future__ import annotations
 from dataclasses import dataclass
 
-# package imports CONFIG DATASET
+# CONFIG DATASET
 from src.crispml.config.dataset.dataset_config import DatasetConfig
 from src.crispml.config.dataset.feature_config import FeatureConfig
 from src.crispml.config.dataset.bigdata_config import BigDataConfig
-# package imports CONFIG MODELING
+# CONFIG MODELING
 from src.crispml.config.modeling.modeling_config import ModelingConfig
 from src.crispml.config.modeling.evaluation_config import EvaluationConfig
-# package imports CONFIG TECHNIQUES
+# CONFIG TECHNIQUES
 from src.crispml.config.techniques.techniques import TechniquesConfig
 
 
-# package imports COMMON LOGGING
+# COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -77,21 +77,21 @@ class ProjectConfig:
     """
 
     name: str
-    dataset: DatasetConfig
-    features: FeatureConfig
-    bigdata: BigDataConfig
-    modeling: ModelingConfig
-    evaluation: EvaluationConfig
-    techniques: TechniquesConfig
+    datasetConfig: DatasetConfig
+    featureConfig: FeatureConfig
+    bigDataConfig: BigDataConfig
+    modelingConfig: ModelingConfig
+    evaluationConfig: EvaluationConfig
+    techniquesConfig: TechniquesConfig
 
     def __post_init__(self):
         logger.info("[ProjectConfig] Project '%s' initialized.", self.name)
 
-        logger.debug("[ProjectConfig] Dataset config:\n%s", self.dataset)
-        logger.debug("[ProjectConfig] Feature config:\n%s", self.features)
-        logger.debug("[ProjectConfig] BigData config:\n%s", self.bigdata)
-        logger.debug("[ProjectConfig] Modeling config:\n%s", self.modeling)
-        logger.debug("[ProjectConfig] Evaluation config:\n%s", self.evaluation)
-        logger.debug("[ProjectConfig] Techniques config:\n%s", self.techniques)
+        logger.debug("[ProjectConfig] Dataset config:\n%s", self.datasetConfig)
+        logger.debug("[ProjectConfig] Feature config:\n%s", self.featureConfig)
+        logger.debug("[ProjectConfig] BigData config:\n%s", self.bigDataConfig)
+        logger.debug("[ProjectConfig] Modeling config:\n%s", self.modelingConfig)
+        logger.debug("[ProjectConfig] Evaluation config:\n%s", self.evaluationConfig)
+        logger.debug("[ProjectConfig] Techniques config:\n%s", self.techniquesConfig)
 
         logger.info("[ProjectConfig] Project '%s' configuration ready.", self.name)

@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # package imports CONFIG ENUMS
-from src.crispml.config.enums.enums import ProblemType
+from src.crispml.config.enums.enums_config import ProblemType
 # package imports CONFIG TECHNIQUES
 from src.crispml.config.techniques.techniques_phase2 import (
     Phase2Techniques,

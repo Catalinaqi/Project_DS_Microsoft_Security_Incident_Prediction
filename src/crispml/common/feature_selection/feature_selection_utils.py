@@ -23,7 +23,7 @@ from src.crispml.config.dataset.dataset_config import DatasetConfig
 # package imports CONFIG DATASET
 from src.crispml.config.dataset.feature_config import FeatureConfig
 # package imports COMMON LOGGING
-from src.crispml.config.enums.enums import FeatureSelectionMode
+from src.crispml.config.enums.enums_config import FeatureSelectionMode
 
 # package imports COMMON LOGGING
 from src.crispml.common.logging.logging_utils import get_logger

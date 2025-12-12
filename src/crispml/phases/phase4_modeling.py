@@ -24,7 +24,7 @@ import numpy as np
 
 # --- CONFIG ---
 from src.crispml.config.project.project_config import ProjectConfig
-from src.crispml.config.enums.enums import ProblemType
+#from src.crispml.config.enums.enums_config import ProblemType
 
 # --- MODELING ENGINE ---
 from src.crispml.common.modeling import (
@@ -46,7 +46,15 @@ from src.crispml.common.output import (
 # --- LOGGING ---
 from src.crispml.common.logging.logging_utils import get_logger
 
-PHASE_NAME = "phase4_modeling"
+
+# CONFIG ENUMS
+from src.crispml.config.enums.enums_config import ProblemType
+from src.crispml.config.enums.enums_config import PhaseName
+PHASE_NAME = PhaseName.PHASE4_MODELLING
+
+#problem_type_str: str = ProblemType.name.lower()
+
+#PHASE_NAME = "phase4_modeling"
 logger = get_logger(__name__)
 
 
@@ -74,7 +82,7 @@ def run_phase4(
 
     logger.info("=== START FASE 4 – MODELING (%s) ===", config.name)
 
-    problem_type = config.dataset.problem_type
+    problem_type = config.datasetConfig.problem_type
     models: Dict[str, Any] = {}
     extra: Dict[str, Any] = {}
 
@@ -95,7 +103,7 @@ def run_phase4(
     if problem_type == ProblemType.CLUSTERING:
 
         logger.info("[FASE4][CLUSTERING] Algoritmi: %s",
-                    config.modeling.clustering_algos)
+                    config.modelingConfig.clustering_algos)
 
 
         full_X = splits.get("X_full")
@@ -105,8 +113,8 @@ def run_phase4(
         # --- entrenar modelos ---
         models = run_clustering_algos(
             X=full_X,
-            algos=config.modeling.clustering_algos,
-            hyperparams=config.modeling.hyperparams,
+            algos=config.modelingConfig.clustering_algos,
+            hyperparams=config.modelingConfig.hyperparams,
         )
 
         # ---------------------------------------------------------
@@ -149,7 +157,7 @@ def run_phase4(
         # guardar imagen
         save_table_as_image(
             modeling_results_df,
-            filename="01_modeling_clustering_results.png",
+            f"{problem_type}_01_modeling_clustering_results.png",
             phase_name=PHASE_NAME,
         )
 
@@ -166,43 +174,43 @@ def run_phase4(
     elif problem_type == ProblemType.CLASSIFICATION:
 
         logger.info("[FASE4][CLASSIFICATION] Algoritmi: %s",
-                    config.modeling.classification_algos)
+                    config.modelingConfig.classification_algos)
 
         models, _ = run_classification_algos(
             X_train=X_train,
             X_test=X_test,
             y_train=y_train,
             y_test=y_test,
-            algos=config.modeling.classification_algos,
-            hyperparams=config.modeling.hyperparams,
+            algos=config.modelingConfig.classification_algos,
+            hyperparams=config.modelingConfig.hyperparams,
         )
 
     elif problem_type == ProblemType.REGRESSION:
 
         logger.info("[FASE4][REGRESSION] Algoritmi: %s",
-                    config.modeling.regression_algos)
+                    config.modelingConfig.regression_algos)
 
         models, _ = run_regression_algos(
             X_train=X_train,
             X_test=X_test,
             y_train=y_train,
             y_test=y_test,
-            algos=config.modeling.regression_algos,
-            hyperparams=config.modeling.hyperparams,
+            algos=config.modelingConfig.regression_algos,
+            hyperparams=config.modelingConfig.hyperparams,
         )
 
     elif problem_type == ProblemType.TIME_SERIES:
 
         logger.info("[FASE4][TS] Algoritmi: %s",
-                    config.modeling.ts_algos)
+                    config.modelingConfig.ts_algos)
 
         if y_train is None:
             raise ValueError("Per il problema TIME_SERIES, y_train deve essere disponibile.")
 
         models = run_time_series_algos(
             y_train=pd.Series(y_train),
-            algos=config.modeling.ts_algos,
-            hyperparams=config.modeling.hyperparams,
+            algos=config.modelingConfig.ts_algos,
+            hyperparams=config.modelingConfig.hyperparams,
         )
 
         # Info necessarie per FASE 5
