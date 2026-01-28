@@ -54,6 +54,7 @@ notebooks/.ipynb_checkpoints/
 # ============================================
 #  IDE FILES
 # ============================================
-data/*.csv
+data/raw/*.csv
 
 
+*.csv

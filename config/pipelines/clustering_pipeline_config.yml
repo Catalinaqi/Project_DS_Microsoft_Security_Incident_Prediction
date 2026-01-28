@@ -1,0 +1,723 @@
+version: "1.0"
+
+pipeline:
+  name: "clustering_pipeline"
+  task: "clustering"
+  objective: >
+    End-to-end CRISP-ML pipeline for unsupervised clustering.
+    Stages 2→5. Generates report artifacts (PNG/JSON) and persists trained models.
+
+  # Variables injected by the notebook (or resolved via dataset_config.yml)
+  variables:
+    dataset_path: "${dataset_path}"
+    target_col: "${target_col}"     # NOT used in clustering (should be null)
+    time_col: "${time_col}"         # NOT used in clustering (should be null)
+    id_cols: "${id_cols}"           # Optional list of technical identifiers
+
+runtime:
+  random_seed: 42
+  output_root: "${output_root}" #"out"
+  overwrite_artifacts: true
+
+# -----------------------------------------
+# PIPELINE STAGES
+# Objective: implement Stages 2 to 5 of CRISP-ML
+# -----------------------------------------
+stages:
+  # -------------------------
+  # STAGE 2 — DATA UNDERSTANDING (PHASE 2)
+  # -------------------------
+  stage2_understanding:
+    enabled: true
+    objective: >
+      Load CSV + describe structure + data quality assessment + EDA.
+      Stage 2 MUST NOT modify data (report-only).
+
+    dataset_input:
+      source_type: "csv"
+      path: "${dataset_path}"
+
+      # Optional CSV overrides (prefer putting them in datasets/*.yml)
+      csv_params:
+        sep: ","
+        encoding: "utf-8"
+        decimal: "."
+        low_memory: true
+
+      # For large datasets: work on sample/chunks for profiling & EDA.
+      read_strategy:
+        mode: "sample"                # full | sample | chunked
+        sample_rows: 200000
+        sample_frac: null
+        random_state: 42
+        chunksize: 200000
+
+    output_policy:
+      save_all_as_png: true
+      figures_dir: "figures/stage2"
+      tables_png_dir: "tables_png/stage2"
+      dpi: 150
+
+    steps:
+
+      # 2.1 Data acquisition — CSV only (your scenario)
+      step_2_1_data_acquisition:
+        enabled: true
+        technique: "data_acquisition"
+        methods:
+          load_csv:
+            enabled: true
+            params:
+              infer_datetime: true
+              parse_dates: []
+
+      # 2.2 Describe data — stats + schema inspection
+      step_2_2_describe_data:
+        enabled: true
+        techniques:
+
+          descriptive_statistics:
+            enabled: true
+            methods:
+              describe:
+                enabled: true
+                params:
+                  include: "all"
+                  numeric_only: false
+
+              min_max_mean_std:
+                enabled: true
+                params:
+                  numeric_only: true
+
+          schema_inspection:
+            enabled: true
+            methods:
+              dtype_analysis:
+                enabled: true
+
+              cardinality_count:
+                enabled: true
+                params:
+                  max_unique_to_report: 50
+
+              null_count:
+                enabled: true
+
+      # 2.3 Data quality assessment — detect only (no corrections)
+      step_2_3_data_quality_assessment:
+        enabled: true
+        technique: "data_quality_assessment"
+        methods:
+          missing_analysis:
+            enabled: true
+            params:
+              show_top_columns: 30
+
+          outlier_detection:
+            enabled: true
+            params:
+              method: "iqr"            # iqr | zscore
+              iqr_k: 1.5
+              zscore_threshold: 3.0
+              numeric_only: true
+              max_columns: 30
+
+          duplicate_detection:
+            enabled: true
+            params:
+              subset: null
+              keep: "first"
+
+          range_validation:
+            enabled: true
+            params:
+              rules_file: "configs/rules/ranges_quality_rules_config.yml"
+              on_fail: "report_only"
+
+          inconsistency_checks:
+            enabled: true
+            params:
+              rules_file: "configs/rules/logic_quality_rules_config.yml"
+              on_fail: "report_only"
+
+      # 2.4 EDA — visual exploration (PNG)
+      step_2_4_eda:
+        enabled: true
+        technique: "eda"
+        methods:
+          histograms:
+            enabled: true
+            params:
+              numeric_only: true
+              max_columns: 20
+              bins: 30
+
+          boxplots:
+            enabled: true
+            params:
+              numeric_only: true
+              max_columns: 20
+
+          scatter_matrix:
+            enabled: true
+            params:
+              numeric_only: true
+              max_columns: 8
+              sample_rows: 10000
+
+          correlation_matrix:
+            enabled: true
+            params:
+              method: "pearson"        # pearson | spearman
+              numeric_only: true
+              max_columns: 30
+
+          pca_exploratory:
+            enabled: true
+            params:
+              numeric_only: true
+              n_components: 2
+              sample_rows: 20000
+
+
+  # -------------------------
+  # STAGE 3 — DATA PREPARATION (PHASE 3)
+  # -------------------------
+  stage3_preparation:
+    enabled: true
+    objective: >
+      Prepare data for clustering: selection + cleaning + transformations +
+      (optional integration) + formatting. No train/test split for clustering.
+
+    output_policy:
+      save_all_as_png: true
+      figures_dir: "figures/stage3"
+      tables_png_dir: "tables_png/stage3"
+
+    steps:
+
+      # 3.1 Data selection
+      step_3_1_data_selection:
+        enabled: true
+        techniques:
+
+          dataset_definition:
+            enabled: true
+            methods:
+              manual_include_exclude:
+                enabled: true
+                params: { include: [], exclude: [] }
+
+              drop_technical_columns:
+                enabled: true
+                params:
+                  patterns: ["id", "uuid", "log"]
+
+              time_window_selection:
+                enabled: false
+                params:
+                  time_col: "${time_col}"
+                  start: null
+                  end: null
+
+              population_filtering:
+                enabled: false
+                params:
+                  rules_file: "configs/rules/logic_quality_rules_config.yml"
+
+          feature_selection:
+            enabled: true
+            methods:
+              semantic_based_selection:
+                enabled: false
+                params: { keep: [] }
+
+              business_rule_filtering:
+                enabled: false
+                params:
+                  rules_file: "configs/rules/logic_quality_rules_config.yml"
+
+              remove_constant_features:
+                enabled: true
+                params: { threshold_unique: 1 }
+
+              remove_duplicate_features:
+                enabled: true
+                params: { strategy: "exact" }
+
+      # 3.2 Data cleaning
+      step_3_2_data_cleaning:
+        enabled: true
+        techniques:
+
+          missing_data_handling:
+            enabled: true
+            selection_policy:
+              numeric_imputer: "median_imputation"     # mean_imputation | median_imputation | knn_imputation | mice_imputation
+              categorical_imputer: "mode_imputation"   # mode_imputation | constant_imputation
+            methods:
+              drop_rows:
+                enabled: false
+                params: { how: "any" }
+
+              drop_columns:
+                enabled: false
+                params: { threshold: 0.5 }
+
+              mean_imputation:
+                enabled: false
+                params: { numeric_only: true }
+
+              median_imputation:
+                enabled: true
+                params: { numeric_only: true }
+
+              mode_imputation:
+                enabled: true
+                params: { for_categoricals: true }
+
+              constant_imputation:
+                enabled: false
+                params: { value: "missing" }
+
+              knn_imputation:
+                enabled: false
+                params: { n_neighbors: 5 }
+
+              mice_imputation:
+                enabled: false
+                params: {}
+
+          outlier_handling:
+            enabled: true
+            methods:
+              winsorization:
+                enabled: false
+                params: { limits: [0.01, 0.01] }
+
+              iqr_clipping:
+                enabled: true
+                params: { k: 1.5 }
+
+              zscore_filtering:
+                enabled: false
+                params: { threshold: 3.0 }
+
+          robust_transformations:
+            enabled: true
+            methods:
+              log_transform:
+                enabled: false
+                params: { shift_if_needed: true }
+
+              box_cox:
+                enabled: false
+                params: {}
+
+              yeo_johnson:
+                enabled: true
+                params: {}
+
+          categorical_noise:
+            enabled: true
+            methods:
+              fix_typos:
+                enabled: true
+                params: { lowercase: true, regex_cleanup: true }
+
+              text_normalization:
+                enabled: true
+                params: { remove_accents: true }
+
+              rare_grouping:
+                enabled: true
+                params: { min_freq: 0.01 }
+
+          duplicate_handling:
+            enabled: true
+            methods:
+              exact_duplicates:
+                enabled: true
+                params: { subset: null, keep: "first" }
+
+      # 3.3 Data transformation
+      step_3_3_data_transformation:
+        enabled: true
+        techniques:
+
+          # Scaling is generally useful for clustering (distances).
+          feature_scaling:
+            enabled: true
+            selection_policy:
+              scaling_method: "standard_scaling"       # standard_scaling | minmax_scaling | robust_scaling | maxabs_scaling | none
+            methods:
+              standard_scaling: { enabled: true, params: {} }
+              minmax_scaling:   { enabled: false, params: { feature_range: [0, 1] } }
+              robust_scaling:   { enabled: false, params: {} }
+              maxabs_scaling:   { enabled: false, params: {} }
+
+          # Keep encoding OFF by default for clustering (per your matrix),
+          # unless you later decide to support mixed-type clustering explicitly.
+          encoding:
+            enabled: false
+            selection_policy:
+              categorical_encoding: "one_hot_encoding"
+            methods:
+              one_hot_encoding:
+                enabled: false
+                params: { handle_unknown: "ignore" }
+
+              ordinal_encoding:
+                enabled: false
+                params: {}
+
+              frequency_encoding:
+                enabled: false
+                params: {}
+
+          feature_engineering:
+            enabled: false
+            methods: {}
+
+          temporal_features:
+            enabled: false
+            methods: {}
+
+      # 3.4 Data integration (optional)
+      step_3_4_data_integration:
+        enabled: false
+        technique: "data_integration"
+        methods:
+          dataset_merging:
+            enabled: false
+            params: { how: "inner", on: [] }
+
+          union_concat:
+            enabled: false
+            params: { axis: 0 }
+
+          feature_alignment:
+            enabled: false
+            params:
+              column_renaming: {}
+              datatype_harmonization: true
+              column_selection: []
+
+          key_resolution:
+            enabled: false
+            params:
+              surrogate_keys: false
+
+          granularity_alignment:
+            enabled: false
+            params: {}
+
+          temporal_alignment:
+            enabled: false
+            params: {}
+
+          conflict_resolution:
+            enabled: false
+            params:
+              priority_rules_file: "configs/rules/logic_quality_rules_config.yml"
+
+          data_enrichment:
+            enabled: false
+            params:
+              lookup_tables: []
+
+      # 3.5 Data formatting (no split for clustering)
+      step_3_5_data_formatting:
+        enabled: true
+        techniques:
+
+          data_split:
+            enabled: true
+            methods:
+              no_split_clustering:
+                enabled: true
+                params: {}
+
+          dataset_formatting:
+            enabled: true
+            methods:
+              x_y_separation:
+                enabled: false         # NOT applicable to clustering
+                params: { target_col: "${target_col}" }
+
+              type_casting:
+                enabled: true
+                params: {}
+
+              array_conversion:
+                enabled: true
+                params: { to_numpy: true }
+
+              sparse_dense_format:
+                enabled: false
+                params: { format: "sparse" }
+
+              reshaping:
+                enabled: false
+                params: {}
+
+
+  # -------------------------
+  # STAGE 4 — MODELING (PHASE 4)  [ALIGNED TO YOUR IMAGES]
+  # -------------------------
+  stage4_modeling:
+    enabled: true
+    objective: >
+      Phase 4 (Modeling) for clustering: algorithm selection, training,
+      optional hyperparameter tuning, and evaluation metrics.
+
+    output_policy:
+      models_dir: "models"
+      figures_dir: "figures/stage4"
+      tables_png_dir: "tables_png/stage4"
+      metrics_file: "metrics.json"
+      save_all_as_png: true
+
+    steps:
+
+      # 4.1 Select the technique (Algorithm selection)
+      step_4_1_algorithm_selection:
+        enabled: true
+        technique: "algorithm_selection"
+        methods:
+          kmeans:
+            enabled: true
+            params: {}
+
+          dbscan:
+            enabled: true
+            params: {}
+
+      # 4.2 Build the model (Model training)
+      step_4_2_model_training:
+        enabled: true
+        technique: "model_training"
+        methods:
+
+          # Fit applies to clustering (per your matrix)
+          fit:
+            enabled: true
+            params:
+              fit_best_only: true
+              store_all_models: true
+
+          # Hyperparameter tuning "can be applied" to clustering
+          hyperparameter_tuning:
+            enabled: true
+            params:
+              strategy: "grid"          # grid | random
+              scoring: "silhouette"     # clustering-oriented
+              n_iter: 30                # used only if strategy=random
+              refit: true
+            grids:
+              kmeans:
+                n_clusters: [2, 3, 4, 5, 8, 10]
+                init: ["k-means++"]
+                n_init: [10]
+                max_iter: [300]
+              dbscan:
+                eps: [0.3, 0.5, 0.8, 1.0]
+                min_samples: [3, 5, 10]
+                metric: ["euclidean"]
+
+          cross_validation:
+            enabled: false             # NOT applicable to clustering (only for classification/regression)
+            params: {}
+
+      # 4.3 Generate the test project (Test design)
+      step_4_3_test_design:
+        enabled: true
+        technique: "test_design"
+        methods:
+          # Cross-validation does NOT apply to clustering in your matrix
+          cross_validation:
+            enabled: false
+            params: {}
+
+          # Hold-out does NOT apply to clustering in your matrix
+          holdout:
+            enabled: false
+            params: {}
+
+          # Temporal tests do NOT apply to clustering in your matrix
+          temporal_test:
+            enabled: false
+            params: { time_col: "${time_col}" }
+
+          walk_forward:
+            enabled: false
+            params: { n_splits: 5 }
+
+      # 4.4 Evaluate the model (Model evaluation)
+      step_4_4_model_evaluation:
+        enabled: true
+        technique: "model_evaluation"
+        metrics:
+          silhouette:
+            enabled: true              # applies to clustering
+            params:
+              sample_size: 20000       # for speed on large datasets
+              metric: "euclidean"
+
+          accuracy:
+            enabled: false             # not applicable
+
+          f1_score:
+            enabled: false             # not applicable
+
+          rmse:
+            enabled: false             # not applicable
+
+          mae:
+            enabled: false             # not applicable
+
+          aic_bic:
+            enabled: false             # not applicable
+
+
+  # -------------------------
+  # STAGE 5 — EVALUATION & INTERPRETATION (PHASE 5)  [ALIGNED TO YOUR IMAGES]
+  # -------------------------
+  stage5_evaluation_and_interpretation:
+    enabled: true
+    objective: >
+      Phase 5: interpret clusters, evaluate business value, audit the process,
+      and decide next steps.
+
+    output_policy:
+      figures_dir: "figures/stage5"
+      tables_png_dir: "tables_png/stage5"
+      save_all_as_png: true
+
+    steps:
+
+      # 5.1 Interpretation (Extract knowledge)
+      step_5_1_interpretation:
+        enabled: true
+        technique: "interpretation"
+        methods:
+          # "Can be applied" to clustering (model-dependent; e.g., distance-based proxies)
+          feature_importance:
+            enabled: true
+            params:
+              method: "permutation_proxy"  # placeholder concept (implementation-defined)
+              top_k: 30
+
+          # Coefficients do NOT apply to clustering
+          coefficients:
+            enabled: false
+            params: {}
+
+          # Applies to clustering (per your matrix)
+          cluster_profiling:
+            enabled: true
+            params:
+              summary_stats: ["mean", "median", "count"]
+              top_features: 30
+              export_tables_as_png: true
+
+          # "Can be applied" to clustering (requires extra dependency; keep OFF by default if you prefer)
+          shap_values:
+            enabled: false
+            params:
+              max_samples: 2000
+              explainer: "kernel"
+
+          # "Can be applied" to clustering
+          permutation_importance:
+            enabled: true
+            params:
+              n_repeats: 10
+              random_state: 42
+
+          # PDP does NOT apply to clustering in your matrix
+          partial_dependence_plot:
+            enabled: false
+            params: {}
+
+          # Confusion matrix does NOT apply to clustering
+          confusion_matrix_analysis:
+            enabled: false
+            params: {}
+
+      # 5.2 Business evaluation
+      step_5_2_business_evaluation:
+        enabled: true
+        technique: "business_evaluation"
+        methods:
+          compare_models:
+            enabled: true              # can be applied
+            params:
+              rank_by: ["silhouette"]
+
+          baseline_comparison:
+            enabled: true              # can be applied
+            params:
+              baseline: "single_cluster"   # conceptual baseline
+
+          business_kpis:
+            enabled: true              # can be applied
+            params:
+              kpi_rules_file: "configs/rules/business_kpi_rules_config.yml"
+
+      # 5.3 Process audit
+      step_5_3_process_audit:
+        enabled: true
+        technique: "process_audit"
+        methods:
+          pipeline_review:
+            enabled: true
+            params: {}
+
+          reproducibility_check:
+            enabled: true
+            params:
+              require_seed: true
+              require_config_snapshot: true
+
+          # Leakage detection does NOT apply to clustering (per your matrix)
+          leakage_detection:
+            enabled: false
+            params: {}
+
+      # 5.4 Decision-making
+      step_5_4_decision_making:
+        enabled: true
+        technique: "decision_making"
+        methods:
+          # "Can be applied" to clustering
+          go_no_go_decision:
+            enabled: true
+            params:
+              min_silhouette: 0.15
+
+          # "Can be applied" to clustering
+          iterate_model:
+            enabled: true
+            params:
+              enable_backloop_to_stage: 4
+
+          # Deploy planning does NOT apply to clustering (per your matrix)
+          deploy_planning:
+            enabled: false
+            params: {}
+
+          # "Can be applied" to clustering
+          human_in_the_loop:
+            enabled: true
+            params:
+              require_manual_signoff: true
+
+          # Deployment risk assessment does NOT apply to clustering (per your matrix)
+          deployment_risk_assessment:
+            enabled: false
+            params: {}
+
+
+

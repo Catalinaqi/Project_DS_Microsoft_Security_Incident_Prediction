@@ -1,0 +1,642 @@
+version: "1.0"
+
+pipeline:
+  name: "timeseries_pipeline"
+  task: "timeseries"
+  objective: >
+    End-to-end CRISP-ML pipeline for supervised time series forecasting
+    (temporal dependency). Stages 2→5. Generates report artifacts (PNG/JSON)
+    and persists trained models.
+
+  # Variables injected by the notebook (or resolved via dataset_config.yml)
+  variables:
+    dataset_path: "${dataset_path}"
+    target_col: "${target_col}"     # REQUIRED for time series forecasting
+    time_col: "${time_col}"         # REQUIRED for time series
+    id_cols: "${id_cols}"           # Optional: entity identifiers (e.g., store_id)
+
+runtime:
+  random_seed: 42
+  output_root: "${output_root}" # "out"
+  overwrite_artifacts: true
+
+
+# -------------------------
+# PIPELINE STAGES CONFIGURATION
+# Objective: Define each stage (2 to 5) with techniques, methods and parameters.
+# -------------------------
+stages:
+
+  # -------------------------
+  # STAGE 2 — DATA UNDERSTANDING (PHASE 2)
+  # -------------------------
+  stage2_understanding:
+    enabled: true
+    objective: >
+      Load CSV + describe structure + data quality assessment + EDA.
+      Stage 2 MUST NOT modify data (report-only).
+
+    dataset_input:
+      source_type: "csv"
+      path: "${dataset_path}"
+
+      # Optional CSV overrides (prefer putting them in datasets/*.yml)
+      csv_params:
+        sep: ","
+        encoding: "utf-8"
+        decimal: "."
+        low_memory: true
+
+      # For large datasets: work on sample/chunks for profiling & EDA.
+      # NOTE: For time series, sampling should preserve ordering when possible.
+      read_strategy:
+        mode: "sample"                # full | sample | chunked
+        sample_rows: 200000
+        sample_frac: null
+        random_state: 42
+        chunksize: 200000
+        preserve_time_order: true
+
+    output_policy:
+      save_all_as_png: true
+      figures_dir: "figures/stage2"
+      tables_png_dir: "tables_png/stage2"
+      dpi: 150
+
+    steps:
+
+      # 2.1 Data acquisition — CSV only (your scenario)
+      step_2_1_data_acquisition:
+        enabled: true
+        technique: "data_acquisition"
+        methods:
+          load_csv:
+            enabled: true
+            params:
+              infer_datetime: true
+              parse_dates: ["${time_col}"]
+
+          load_parquet:
+            enabled: false
+            params: {}
+
+          load_database:
+            enabled: false
+            params: {}
+
+          load_api:
+            enabled: false
+            params: {}
+
+      # 2.2 Describe data — stats + schema inspection
+      step_2_2_describe_data:
+        enabled: true
+        techniques:
+
+          descriptive_statistics:
+            enabled: true
+            methods:
+              describe:
+                enabled: true
+                params:
+                  include: "all"
+                  numeric_only: false
+
+              min_max_mean_std:
+                enabled: true
+                params:
+                  numeric_only: true
+
+          schema_inspection:
+            enabled: true
+            methods:
+              dtype_analysis:
+                enabled: true
+
+              cardinality_count:
+                enabled: true
+                params:
+                  max_unique_to_report: 50
+
+              null_count:
+                enabled: true
+
+      # 2.3 Data quality assessment — detect only (no corrections)
+      step_2_3_data_quality_assessment:
+        enabled: true
+        technique: "data_quality_assessment"
+        methods:
+          missing_analysis:
+            enabled: true
+            params:
+              show_top_columns: 30
+
+          outlier_detection:
+            enabled: true
+            params:
+              method: "iqr"            # iqr | zscore
+              iqr_k: 1.5
+              zscore_threshold: 3.0
+              numeric_only: true
+              max_columns: 30
+
+          duplicate_detection:
+            enabled: true
+            params:
+              subset: ["${time_col}"]   # duplicates on time index are critical
+              keep: "first"
+
+          range_validation:
+            enabled: true
+            params:
+              rules_file: "configs/rules/ranges_quality_rules_config.yml"
+              on_fail: "report_only"
+
+          inconsistency_checks:
+            enabled: true
+            params:
+              rules_file: "configs/rules/logic_quality_rules_config.yml"
+              on_fail: "report_only"
+
+      # 2.4 EDA — time series exploration (PNG)
+      step_2_4_eda:
+        enabled: true
+        technique: "eda"
+        methods:
+          # Generic plots are allowed, but time series plots are the key.
+          histograms:
+            enabled: true
+            params:
+              numeric_only: true
+              max_columns: 10
+              bins: 30
+
+          correlation_matrix:
+            enabled: true
+            params:
+              method: "pearson"
+              numeric_only: true
+              max_columns: 20
+
+          time_series_plots:
+            enabled: true
+            params:
+              time_col: "${time_col}"
+              target_col: "${target_col}"
+              groupby_id_cols: "${id_cols}"   # optional
+              sample_series: 5                # number of entities to plot if multiple
+              rolling_window: 7               # for smoothing preview
+
+          pca_exploratory:
+            enabled: false                    # often less meaningful for pure TS
+            params: {}
+
+
+  # -------------------------
+  # STAGE 3 — DATA PREPARATION (PHASE 3)
+  # -------------------------
+  stage3_preparation:
+    enabled: true
+    objective: >
+      Prepare data for forecasting: selection + cleaning + transformations +
+      temporal features + temporal split + formatting.
+
+    output_policy:
+      save_all_as_png: true
+      figures_dir: "figures/stage3"
+      tables_png_dir: "tables_png/stage3"
+
+    steps:
+
+      # 3.1 Data selection
+      step_3_1_data_selection:
+        enabled: true
+        techniques:
+          dataset_definition:
+            enabled: true
+            methods:
+              manual_include_exclude:
+                enabled: true
+                params: { include: [], exclude: [] }
+
+              drop_technical_columns:
+                enabled: true
+                params:
+                  patterns: ["uuid", "log"]
+
+              # Time window selection is relevant for time series (applies)
+              time_window_selection:
+                enabled: true
+                params:
+                  time_col: "${time_col}"
+                  start: null
+                  end: null
+
+          feature_selection:
+            enabled: true
+            methods:
+              remove_constant_features:
+                enabled: true
+                params: { threshold_unique: 1 }
+
+              remove_duplicate_features:
+                enabled: true
+                params: { strategy: "exact" }
+
+      # 3.2 Data cleaning
+      step_3_2_data_cleaning:
+        enabled: true
+        techniques:
+          missing_data_handling:
+            enabled: true
+            selection_policy:
+              numeric_imputer: "median_imputation"
+              categorical_imputer: "mode_imputation"
+            methods:
+              median_imputation:
+                enabled: true
+                params: { numeric_only: true }
+
+              mode_imputation:
+                enabled: true
+                params: { for_categoricals: true }
+
+              knn_imputation:
+                enabled: false
+                params: { n_neighbors: 5 }
+
+              mice_imputation:
+                enabled: false
+                params: {}
+
+          outlier_handling:
+            enabled: true
+            methods:
+              iqr_clipping:
+                enabled: true
+                params: { k: 1.5 }
+
+          duplicate_handling:
+            enabled: true
+            methods:
+              exact_duplicates:
+                enabled: true
+                params:
+                  subset: ["${time_col}"]
+                  keep: "first"
+
+      # 3.3 Data transformation
+      step_3_3_data_transformation:
+        enabled: true
+        techniques:
+          # Scaling is "can be applied" depending on model; keep optional.
+          feature_scaling:
+            enabled: false
+            selection_policy:
+              scaling_method: "standard_scaling"
+            methods:
+              standard_scaling: { enabled: true, params: {} }
+
+          # Encoding is generally not used for ARIMA/SARIMA; keep OFF.
+          encoding:
+            enabled: false
+            methods: {}
+
+          # Feature engineering for time series is key (applies)
+          temporal_features:
+            enabled: true
+            methods:
+              lags:
+                enabled: true
+                params:
+                  target_col: "${target_col}"
+                  lags: [1, 2, 3, 7, 14]
+
+              rolling_statistics:
+                enabled: true
+                params:
+                  target_col: "${target_col}"
+                  windows: [7, 14]
+                  stats: ["mean", "std"]
+
+              expanding_windows:
+                enabled: false
+                params:
+                  target_col: "${target_col}"
+                  stats: ["mean"]
+
+              date_decomposition:
+                enabled: true
+                params:
+                  time_col: "${time_col}"
+                  components: ["month", "dayofweek"]
+
+      # 3.4 Data integration (optional)
+      step_3_4_data_integration:
+        enabled: false
+        technique: "data_integration"
+        methods: {}
+
+      # 3.5 Data formatting (temporal split)
+      step_3_5_data_formatting:
+        enabled: true
+        techniques:
+          data_split:
+            enabled: true
+            methods:
+              # Hold-out does NOT apply to time series (per your matrix)
+              holdout:
+                enabled: false
+                params: {}
+
+              # CV does NOT apply to time series in your matrix
+              cross_validation:
+                enabled: false
+                params: {}
+
+              # Temporal split applies to time series
+              temporal_split:
+                enabled: true
+                params:
+                  time_col: "${time_col}"
+                  test_size: 0.2
+                  sort_ascending: true
+
+              # Walk-forward applies to time series (TimeSeriesSplit style)
+              walk_forward:
+                enabled: true
+                params:
+                  n_splits: 5
+
+              x_y_separation:
+                enabled: true
+                params:
+                  target_col: "${target_col}"
+
+              type_casting:
+                enabled: true
+                params:
+                  time_col: "${time_col}"
+                  enforce_datetime: true
+
+
+  # -------------------------
+  # STAGE 4 — MODELING (PHASE 4)  [ALIGNED TO YOUR IMAGES]
+  # -------------------------
+  stage4_modeling:
+    enabled: true
+    objective: >
+      Phase 4 (Modeling) for time series: algorithm selection, training,
+      optional hyperparameter tuning, temporal test design, and evaluation.
+
+    output_policy:
+      models_dir: "models"
+      figures_dir: "figures/stage4"
+      tables_png_dir: "tables_png/stage4"
+      metrics_file: "metrics.json"
+      save_all_as_png: true
+
+    steps:
+
+      # 4.1 Select the technique (Algorithm selection)
+      step_4_1_algorithm_selection:
+        enabled: true
+        technique: "algorithm_selection"
+        methods:
+          arima:
+            enabled: true
+            params: {}
+
+          sarima:
+            enabled: true
+            params: {}
+
+      # 4.2 Build the model (Model training)
+      step_4_2_model_training:
+        enabled: true
+        technique: "model_training"
+        methods:
+          # Fit applies (per your matrix)
+          fit:
+            enabled: true
+            params:
+              fit_best_only: true
+              store_all_models: true
+
+          # Hyperparameter tuning "can be applied" (per your matrix)
+          hyperparameter_tuning:
+            enabled: true
+            params:
+              strategy: "grid"              # grid | random
+              scoring: "rmse"
+              n_iter: 30
+              refit: true
+            grids:
+              arima:
+                order:
+                  - [1, 0, 0]
+                  - [1, 1, 0]
+                  - [2, 1, 0]
+                  - [2, 1, 1]
+              sarima:
+                order:
+                  - [1, 1, 1]
+                  - [2, 1, 1]
+                seasonal_order:
+                  - [1, 1, 1, 7]
+                  - [1, 1, 1, 12]
+
+          cross_validation:
+              enabled: false                  # CV not applicable for TS here
+              params: {}
+
+      # 4.3 Generate the test project (Test design)
+      step_4_3_test_design:
+        enabled: true
+        technique: "test_design"
+        methods:
+          # Hold-out does NOT apply (per your matrix)
+          holdout:
+            enabled: false
+            params: {}
+
+          # Cross-validation does NOT apply (per your matrix)
+          cross_validation:
+            enabled: false
+            params: {}
+
+          # Temporal test applies (per your matrix)
+          temporal_test:
+            enabled: true
+            params:
+              time_col: "${time_col}"
+              test_size: 0.2
+
+          # Walk-forward applies (per your matrix)
+          walk_forward:
+            enabled: true
+            params:
+              n_splits: 5
+
+      # 4.4 Evaluate the model (Model evaluation)
+      step_4_4_model_evaluation:
+        enabled: true
+        technique: "model_evaluation"
+        metrics:
+          rmse:
+            enabled: true                  # can be applied
+            params: {}
+
+          mae:
+            enabled: true                  # can be applied
+            params: {}
+
+          aic_bic:
+            enabled: true                  # applies
+            params: {}
+
+          accuracy:
+            enabled: false                 # not applicable
+
+          f1_score:
+            enabled: false                 # not applicable
+
+          silhouette:
+            enabled: false                 # not applicable
+
+
+  # -------------------------
+  # STAGE 5 — EVALUATION & INTERPRETATION (PHASE 5)  [ALIGNED TO YOUR IMAGES]
+  # -------------------------
+  stage5_evaluation_and_interpretation:
+    enabled: true
+    objective: >
+      Phase 5: interpret the forecasting model, validate business value,
+      audit the process, and decide next steps.
+
+    output_policy:
+      figures_dir: "figures/stage5"
+      tables_png_dir: "tables_png/stage5"
+      save_all_as_png: true
+
+    steps:
+
+      # 5.1 Interpretation
+      step_5_1_interpretation:
+        enabled: true
+        technique: "interpretation"
+        methods:
+          # Not applicable in your matrix for time series
+          feature_importance:
+            enabled: false
+            params: {}
+
+          # Not applicable in your matrix for time series
+          coefficients:
+            enabled: false
+            params: {}
+
+          # Not applicable in your matrix for time series
+          cluster_profiling:
+            enabled: false
+            params: {}
+
+          # SHAP can be applied (per your matrix) — keep OFF by default due to extra dependency
+          shap_values:
+            enabled: false
+            params:
+              max_samples: 2000
+              explainer: "kernel"
+
+          # Permutation importance can be applied (per your matrix)
+          permutation_importance:
+            enabled: true
+            params:
+              n_repeats: 10
+              random_state: 42
+
+          # PDP can be applied (per your matrix)
+          partial_dependence_plot:
+            enabled: true
+            params:
+              features: []
+              max_features: 6
+
+          # Confusion matrix is not applicable for forecasting
+          confusion_matrix_analysis:
+            enabled: false
+            params: {}
+
+      # 5.2 Business evaluation (can be applied)
+      step_5_2_business_evaluation:
+        enabled: true
+        technique: "business_evaluation"
+        methods:
+          compare_models:
+            enabled: true
+            params:
+              rank_by: ["rmse", "mae", "aic"]
+
+          baseline_comparison:
+            enabled: true
+            params:
+              baseline: "naive_last_value"     # common TS baseline
+
+          business_kpis:
+            enabled: true
+            params:
+              kpi_rules_file: "configs/rules/business_kpi_rules_config.yml"
+
+      # 5.3 Process audit (applies)
+      step_5_3_process_audit:
+        enabled: true
+        technique: "process_audit"
+        methods:
+          pipeline_review:
+            enabled: true
+            params: {}
+
+          reproducibility_check:
+            enabled: true
+            params:
+              require_seed: true
+              require_config_snapshot: true
+
+          # Leakage detection applies to time series (per your matrix)
+          leakage_detection:
+            enabled: true
+            params:
+              time_col: "${time_col}"
+              target_col: "${target_col}"
+              check_future_feature_leakage: true
+
+      # 5.4 Decision-making (can be applied)
+      step_5_4_decision_making:
+        enabled: true
+        technique: "decision_making"
+        methods:
+          go_no_go_decision:
+            enabled: true
+            params:
+              max_rmse: null                 # set thresholds per course if needed
+              max_mae: null
+
+          iterate_model:
+            enabled: true
+            params:
+              enable_backloop_to_stage: 4
+
+          deploy_planning:
+            enabled: true                   # can be applied
+            params:
+              deployment_type: "report_only"
+
+          human_in_the_loop:
+            enabled: true
+            params:
+              require_manual_signoff: true
+
+          deployment_risk_assessment:
+            enabled: true                   # can be applied
+            params:
+              checklist_file: "configs/rules/deployment_risk_checklist.yml"

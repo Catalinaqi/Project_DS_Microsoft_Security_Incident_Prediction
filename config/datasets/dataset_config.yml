@@ -1,0 +1,56 @@
+version: "1.0"
+
+datasets:
+  microsoft_security_incident:
+    description: "Kaggle Microsoft Security Incident Prediction (CSV large: train~2GB, test~1GB)"
+
+    paths:
+      train: "data/raw/train/GUIDE_Train.csv"
+      test: "data/raw/test/GUIDE_Test.csv"     # optional; may not contain target
+
+    csv_params:
+      sep: ","
+      encoding: "utf-8"
+      decimal: "."
+      low_memory: true
+
+    size_hints:
+      train_gb: 2
+      test_gb: 1
+
+    #stage read strategies for different pipeline stages
+
+    # Stage2: profiling/EDA should NOT load full dataset for large CSVs
+      # mode sample: util to get a representative subset quickly
+      # mode chunked: util to scan full dataset in chunks
+      # mode full: util to load entire dataset into memory
+    stage2_read_strategy:
+      mode: "sample"           # sample | chunked | full
+      sample_rows: 200000      # good default for 2GB
+      sample_frac: null
+      random_state: 42
+      chunksize: 200000        # used if mode=chunked
+
+    # Stage3: training prep often needs full train, but can still use chunking in some steps
+    stage3_read_strategy:
+      mode: "full"             # full recommended for scikit-learn pipelines
+      chunksize: 200000        # fallback for memory issues
+
+    # Optional hints (can be null at first; Stage2 will suggest)
+    columns_hint:
+      target_col: null
+      time_col: null
+      id_cols: []              # e.g. ["IncidentId"] if you discover it
+
+    # Kaggle-style tests usually have NO target
+    test_has_target: false
+
+    # Target/time suggestions rules (Stage2 uses these heuristics)
+    suggestion_policy:
+      enable_target_suggestions: true
+      enable_time_suggestions: true
+      max_class_cardinality: 50        # classification candidate: <=50 unique labels
+      min_class_rows: 500              # avoid tiny label columns
+      max_target_missing_rate: 0.3
+      time_parse_sample_rows: 50000
+      time_monotonic_ratio_min: 0.7    # good hint for timeseries index
