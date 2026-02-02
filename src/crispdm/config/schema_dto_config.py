@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from crispdm.core.logging_utils_core import get_logger
-from crispdm.config.enums_utils_config import ProblemType, normalize_problem_type
+from crispdm.config.enums_utils_config import ProblemType, normalize_problem_type, LogLevel
 
 log = get_logger(__name__)
 
@@ -49,6 +49,7 @@ class RuntimeConfig:
     random_seed: int = 42
     output_root: Path = Path("out")
     overwrite_artifacts: bool = True
+    log_level: str = LogLevel.DEBUG
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,13 @@
+# -------------------------
+# PIPELINE CONFIGURATION FILE
+# CRISP-ML PRO Framework
+# -------------------------
+#
 version: "1.0"
-
+# -------------------------
+# PIPELINE METADATA
+# Objective: Define general information about the pipeline.
+# -------------------------
 pipeline:
   name: "classification_pipeline"
   task: "classification"
@@ -7,7 +15,6 @@ pipeline:
     End-to-end CRISP-ML pipeline for supervised classification
     (categorical target). Stages 2→5. Generates report artifacts (PNG/JSON)
     and persists trained models.
-
   # Variables injected by notebook (or resolved via dataset_config.yml)
   variables:
     dataset_path: "${dataset_path}"
@@ -15,16 +22,20 @@ pipeline:
     time_col: "${time_col}"         # Optional (usually null for classification)
     id_cols: "${id_cols}"           # Optional list of technical identifiers
 
+# -------------------------
+# RUNTIME CONFIGURATION
+# Objective: Define general runtime settings for the pipeline.
+# -------------------------
 runtime:
-  random_seed: 42
-  output_root: "${output_root}" # "out"
-  overwrite_artifacts: true
+  random_seed: 42 # util seeding for reproducibility
+  output_root: "${output_root}" # util base output dir for all artifacts
+  overwrite_artifacts: true # util whether to overwrite existing outputs
+  log_level: "DEBUG"        # DEBUG | INFO | WARNING | ERROR | CRITICAL
 
 # -------------------------
 # PIPELINE STAGES CONFIGURATION
 # Objective: Define each stage (2 to 5) with techniques, methods and parameters.
 # -------------------------
-
 stages:
   # -------------------------
   # STAGE 2 — DATA UNDERSTANDING (PHASE 2)
@@ -34,18 +45,15 @@ stages:
     objective: >
       Load CSV + describe structure + data quality assessment + EDA.
       Stage 2 MUST NOT modify data (report-only).
-
     dataset_input:
       source_type: "csv"
       path: "${dataset_path}"
-
       # Optional CSV overrides (prefer putting them in datasets/*.yml)
       csv_params:
         sep: ","
         encoding: "utf-8"
         decimal: "."
-        low_memory: true
-
+        low_memory: false
       # For large datasets: work on sample/chunks for profiling & EDA.
       read_strategy:
         mode: "sample"                # full | sample | chunked
@@ -53,15 +61,12 @@ stages:
         sample_frac: null
         random_state: 42
         chunksize: 200000
-
     output_policy:
       save_all_as_png: true
       figures_dir: "figures/stage2"
       tables_png_dir: "tables_png/stage2"
       dpi: 150
-
     steps:
-
       # 2.1 Data acquisition — CSV only (your scenario)
       step_2_1_data_acquisition:
         enabled: true
@@ -72,12 +77,10 @@ stages:
             params:
               infer_datetime: true
               parse_dates: []          # e.g. ["event_time"] if known
-
       # 2.2 Describe data — stats + schema inspection
       step_2_2_describe_data:
         enabled: true
         techniques:
-
           descriptive_statistics:
             enabled: true
             methods:
@@ -90,7 +93,6 @@ stages:
                 enabled: true
                 params:
                   numeric_only: true
-
           schema_inspection:
             enabled: true
             methods:
@@ -108,12 +110,10 @@ stages:
         enabled: true
         technique: "data_quality_assessment"
         methods:
-
           missing_analysis:
             enabled: true
             params:
               show_top_columns: 30
-
           outlier_detection:
             enabled: true
             params:
@@ -122,19 +122,16 @@ stages:
               zscore_threshold: 3.0
               numeric_only: true
               max_columns: 30
-
           duplicate_detection:
             enabled: true
             params:
               subset: null
               keep: "first"
-
           range_validation:
             enabled: true
             params:
               rules_file: "configs/rules/ranges_quality_rules_config.yml"
               on_fail: "report_only"
-
           inconsistency_checks:
             enabled: true
             params:
@@ -146,34 +143,29 @@ stages:
         enabled: true
         technique: "eda"
         methods:
-
           histograms:
             enabled: true
             params:
               numeric_only: true
               max_columns: 20
               bins: 30
-
           boxplots:
             enabled: true
             params:
               numeric_only: true
               max_columns: 20
-
           scatter_matrix:
             enabled: true
             params:
               numeric_only: true
               max_columns: 8
               sample_rows: 10000
-
           correlation_matrix:
             enabled: true
             params:
               method: "pearson"        # pearson | spearman
               numeric_only: true
               max_columns: 30
-
           pca_exploratory:
             enabled: true
             params:
@@ -190,14 +182,12 @@ stages:
     objective: >
       Prepare data for classification: selection + cleaning + transformations +
       (optional integration) + split + formatting. Generates artifacts.
-
     output_policy:
       save_all_as_png: true
       figures_dir: "figures/stage3"
       tables_png_dir: "tables_png/stage3"
 
     steps:
-
       # 3.1 Data selection
       step_3_1_data_selection:
         enabled: true

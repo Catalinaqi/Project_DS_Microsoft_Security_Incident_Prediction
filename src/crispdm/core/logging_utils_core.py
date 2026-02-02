@@ -26,8 +26,10 @@ from typing import Optional
 #   - Facade orchestrates logging init (not each module)
 # =============================================================================
 
-_LOGGER_NAMESPACE = "crispdm"
+_LOGGER_NAMESPACE = "MPPRAI" # module namespace for all loggers, constant
 _CONFIGURED_FOR: Optional[Path] = None
+_LOGS_DIR_NAME = "logs"
+_DEFAULT_LOG_LEVEL = "DEBUG" # Can be overridden via init_logging()
 
 
 def _safe_name(name: str) -> str:
@@ -41,7 +43,9 @@ def _safe_name(name: str) -> str:
     return name or "run"
 
 
-def build_log_file(output_root: Path | str, run_name: str, timestamp: Optional[str] = None) -> Path:
+def build_log_file(output_root: Path | str,
+                   run_name: str,
+                   timestamp: Optional[str] = None) -> Path:
     """
     Build the log file path for a single execution.
 
@@ -53,12 +57,12 @@ def build_log_file(output_root: Path | str, run_name: str, timestamp: Optional[s
       out/logs/classification_preview_20260126_154512.log
     """
     out_root = Path(output_root)
-    logs_dir = out_root / "logs"
+    logs_dir = out_root / _LOGS_DIR_NAME
     ts = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
     return logs_dir / f"{_safe_name(run_name)}_{ts}.log"
 
 
-def init_logging(log_file: Path, level: str = "DEBUG") -> logging.Logger:
+def init_logging(log_file: Path, level: str = _DEFAULT_LOG_LEVEL) -> logging.Logger:
     """
     Initialize crispdm logging for the current run.
 

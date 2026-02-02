@@ -12,7 +12,7 @@ datasets:
       sep: ","
       encoding: "utf-8"
       decimal: "."
-      low_memory: true
+      low_memory: false # parameter to suppress dtype warning in pandas; problematic for very large files (strings or ids)
 
     size_hints:
       train_gb: 2

@@ -1,128 +1,84 @@
-# src/crispdm/api/preview_facade_api.py
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import yaml
-
-from crispdm.core.logging_utils_core import init_logging, get_logger
-from crispdm.config.load_loader_config import load_yaml, load_and_resolve
-from crispdm.config.schema_dto_config import ProjectConfig
-from crispdm.config.validate_validator_config import validate_config
-from crispdm.config.build_factory_config import build_run_context
-from crispdm.data.load_utils_data import resolve_path, load_csv
+from crispdm.core.logging_utils_core import get_logger, init_logging, build_log_file
+from crispdm.config.build_factory_config import build_preview_config, BuiltConfig
+from crispdm.data.profiling_service_data import run_stage2_preview
 
 log = get_logger(__name__)
 
-# ---------------------------------------------------------------------
-# Enterprise / Architectural patterns:
-# - Facade: single entrypoint to orchestrate cross-cutting concerns
-#   (logging + config + validation + stage orchestration).
-# Not a GoF Facade strictly, but same intent (simplify subsystem usage).
-# ---------------------------------------------------------------------
+# =============================================================================
+# Why this module exists
+# -----------------------------------------------------------------------------
+# Facade entrypoint for the notebook PREVIEW flow.
+# The notebook should call a single function, not multiple low-level services.
+#
+# Program flow:
+# - Notebook -> preview_facade_api.run_preview(...)
+#   -> build_factory_config.build_preview_config(...)
+#   -> init_logging(...) (one log file per execution)
+#   -> profiling_service_data.run_stage2_preview(...)
+#   -> returns suggestions for target/time/id
+#
+# Design patterns
+# - GoF:
+#   - Facade (single entrypoint for notebook)
+# - Enterprise/Architectural:
+#   - Application Service / Orchestrator (thin)
+# =============================================================================
 
 
-def save_config_used_unique(
-        resolved_config: Dict[str, Any],
+@dataclass(frozen=True)
+class PreviewResult:
+    config: Any
+    suggestions: Dict[str, Any] # Dictionary with suggested target/time/id columns
+    audit_config_path: str
+    log_file: str
+
+
+def run_preview(
         *,
-        task: str,
-        audit_dir: Path,
-        run_ts: str
-) -> Path:
+        pipeline_config_path: str | Path,
+        dataset_config_path: str | Path,
+        dataset_key: str,
+        notebook_vars: Optional[Dict[str, Any]] = None,
+) -> PreviewResult:
     """
-    Save resolved config snapshot for audit:
-      out/audit/config_used__<task>__<YYYYMMDD_HHMMSS>.yml
+    Build config + run Stage2 preview to suggest target/time/id columns.
     """
-    audit_dir.mkdir(parents=True, exist_ok=True)
-    out_path = audit_dir / f"config_used__{task}__{run_ts}.yml"
-    out_path.write_text(yaml.safe_dump(resolved_config, sort_keys=False), encoding="utf-8")
-    return out_path
-
-
-def preview(
-        *,
-        pipeline_yaml_path: str | Path,
-        dataset_yaml_path: str | Path,
-        dataset_id: str,
-        project_root: Path,
-        runtime_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """
-    Preview flow (Stage2 only conceptually):
-      1) Load dataset_config.yml
-      2) Merge runtime vars (dataset_path/target/time/id/output_root)
-      3) Load+resolve pipeline YAML
-      4) Validate in preview mode (target/time can be None)
-      5) Build DTO + RunContext
-      6) Save config_used snapshot
-      7) Load sample CSV for Stage2 profiling
-
-    Returns a dict with:
-      - cfg (typed DTO)
-      - run_context (paths)
-      - df_head (small preview)
-      - meta (read strategy meta)
-    """
-    runtime_overrides = runtime_overrides or {}
-
-    # ---- Load dataset config ----
-    ds_cfg = load_yaml(dataset_yaml_path)
-    ds = ds_cfg["datasets"][dataset_id]
-
-    # Resolve dataset paths relative to project root
-    train_path = resolve_path(ds["paths"]["train"], project_root=project_root)
-
-    # Stage2 read strategy (big CSV -> sample/chunked)
-    stage2_strategy = ds.get("stage2_read_strategy", {})
-    csv_params = ds.get("csv_params", {})
-
-    # ---- runtime vars for placeholder resolution ----
-    runtime_vars = {
-        "dataset_path": str(train_path),
-        "target_col": ds.get("columns_hint", {}).get("target_col"),
-        "time_col": ds.get("columns_hint", {}).get("time_col"),
-        "id_cols": ds.get("columns_hint", {}).get("id_cols", []),
-        # IMPORTANT: force absolute out root in YAML via ${output_root}
-        "output_root": str(project_root / "out"),
-    }
-    runtime_vars.update(runtime_overrides)  # notebook wins
-
-    # ---- Load + resolve pipeline YAML ----
-    loaded = load_and_resolve(pipeline_yaml_path, runtime_vars=runtime_vars)
-
-    # ---- Validate (preview mode) ----
-    vr = validate_config(loaded.resolved, mode="preview")
-    if not vr.ok:
-        raise ValueError("Config validation failed (preview): " + " | ".join(vr.errors))
-
-    # ---- DTO ----
-    cfg = ProjectConfig.from_dict(loaded.resolved)
-
-    # ---- Build RunContext + init logging for this run ----
-    rc = build_run_context(cfg, project_root=project_root, run_name=f"{cfg.pipeline.task.value}_preview")
-    init_logging(rc.log_file, level="DEBUG")
-    _log = get_logger(__name__)  # re-acquire after init_logging
-    _log.info("preview: start task=%s pipeline=%s", cfg.pipeline.task.value, cfg.pipeline.name)
-
-    # ---- Save audit config_used with unique name ----
-    config_used_path = save_config_used_unique(
-        loaded.resolved,
-        task=cfg.pipeline.task.value,
-        audit_dir=rc.audit_dir,
-        run_ts=rc.run_ts
+    notebook_vars = notebook_vars or {}
+    log.info("Start [build_factory_config.build_preview_config]...with params: "
+             "pipeline_config_path=%s dataset_config_path=%s dataset_key=%s notebook_vars=%s",
+             pipeline_config_path,dataset_config_path,dataset_key,notebook_vars)
+    built: BuiltConfig = build_preview_config(
+        pipeline_config_path=pipeline_config_path,
+        dataset_config_path=dataset_config_path,
+        dataset_key=dataset_key,
+        notebook_vars=notebook_vars,
     )
-    _log.info("preview: saved config_used=%s", config_used_path)
 
-    # ---- Load CSV sample for Stage2 ----
-    df, meta = load_csv(csv_path=train_path, csv_params=csv_params, strategy=stage2_strategy)
-    _log.info("preview: loaded df rows=%d cols=%d mode=%s", len(df), df.shape[1], meta.get("mode"))
+    cfg = built.project_config
+    # Create a unique run name for logging/output:
+    #run_name = f"preview_{cfg.pipeline.task.value}_{cfg.pipeline.name}"
+    run_name = f"preview_{cfg.pipeline.name}"
 
-    return {
-        "cfg": cfg,
-        "run_context": rc,
-        "config_used_path": str(config_used_path),
-        "df_head": df.head(5),
-        "read_meta": meta,
-        "validation_warnings": vr.warnings,
-    }
+    # Initialize logging ONCE per execution:
+    log_file = build_log_file(cfg.runtime.output_root, run_name=run_name)
+    init_logging(log_file=log_file, level=cfg.runtime.log_level)
+
+    log.info("[run_preview] START task=%s dataset=%s",
+             cfg.pipeline.task.value,
+             cfg.pipeline.variables.get("dataset_path"))
+
+    suggestions = run_stage2_preview(project_config=cfg)
+
+    log.info("[run_preview] DONE")
+    return PreviewResult(
+        config=cfg,
+        suggestions=suggestions,
+        audit_config_path=str(built.audit_path),
+        log_file=str(log_file),
+    )

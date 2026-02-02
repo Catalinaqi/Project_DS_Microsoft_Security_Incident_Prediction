@@ -1,21 +1,35 @@
-# src/crispdm/config/validate_validator_config.py
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from crispdm.core.logging_utils_core import get_logger
 from crispdm.config.enums_utils_config import ProblemType, normalize_problem_type
 
 log = get_logger(__name__)
 
-# ---------------------------------------------------------------------
-# Enterprise / Architectural patterns:
-# - Validator component: centralizes config validation rules.
-# - Fail-fast configuration: detect drift/missing required fields early.
-# Not a GoF pattern.
-# ---------------------------------------------------------------------
+# =============================================================================
+# Why this module exists
+# -----------------------------------------------------------------------------
+# This module validates configuration dictionaries (resolved YAML) before they
+# are converted into typed DTOs.
+#
+# It enforces:
+# - minimal required structure (version/pipeline/runtime/stages)
+# - basic consistency rules (task known, paths present, etc.)
+# - strictness levels: preview vs run
+#
+# Program flow:
+# - load_loader_config.load_and_resolve() -> resolved dict
+# - validate_validator_config.validate_config_dict(resolved, mode="preview"|"run")
+# - schema_dto_config.ProjectConfig.from_dict(resolved) -> typed config
+#
+# Design patterns
+# - GoF: none
+# - Enterprise/Architectural:
+#   - Validation Layer (fail-fast)
+#   - Configuration Gatekeeper
+# =============================================================================
 
 
 @dataclass(frozen=True)
@@ -24,119 +38,130 @@ class ValidationResult:
     errors: List[str]
     warnings: List[str]
 
-
-def _as_list(x: Any) -> Optional[List[str]]:
-    if x is None:
-        return None
-    if isinstance(x, list):
-        return [str(v) for v in x]
-    return [str(x)]
+    def raise_if_invalid(self) -> None:
+        if not self.ok:
+            msg = "Config validation failed:\n- " + "\n- ".join(self.errors)
+            raise ValueError(msg)
 
 
-def validate_config(resolved_yaml: Dict[str, Any], *, mode: str = "preview") -> ValidationResult:
+def _get(d: Dict[str, Any], path: str) -> Any:
     """
-    Validate resolved YAML config.
-
-    mode="preview":
-      - allows target_col/time_col to be None (Stage2 will suggest candidates)
-    mode="run":
-      - enforces required fields for Stage3+ execution
+    Get nested key using dot path: "pipeline.task".
     """
-    mode = (mode or "").strip().lower()
-    log.info("validate_config: start mode=%s", mode)
+    cur: Any = d
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+def validate_config_dict(
+        resolved: Dict[str, Any],
+        *,
+        mode: str = "preview",
+) -> ValidationResult:
+    """
+    Validate a resolved YAML config dictionary.
+
+    mode:
+    - "preview": allow missing target_col/time_col (Stage2 will suggest them)
+    - "run": stricter; requires required fields for the chosen task
+    """
+    log.info("[validate_config_dict] START mode=%s", mode)
 
     errors: List[str] = []
     warnings: List[str] = []
 
-    if mode not in {"preview", "run"}:
-        return ValidationResult(False, [f"Invalid mode='{mode}'. Use 'preview' or 'run'."], [])
+    # ---- Root structure ----
+    if not isinstance(resolved, dict):
+        errors.append(f"Root config must be a dict. Got: {type(resolved)}")
+        return ValidationResult(ok=False, errors=errors, warnings=warnings)
 
-    pipeline = resolved_yaml.get("pipeline", {})
-    runtime = resolved_yaml.get("runtime", {})
-    stages = resolved_yaml.get("stages", {})
+    version = resolved.get("version")
+    if not version:
+        warnings.append("Missing 'version'. Default will be assumed by schema layer.")
+
+    pipeline = resolved.get("pipeline")
+    runtime = resolved.get("runtime")
+    stages = resolved.get("stages")
 
     if not isinstance(pipeline, dict):
-        errors.append("Missing or invalid 'pipeline' section (must be dict).")
-        return ValidationResult(False, errors, warnings)
+        errors.append("Missing or invalid 'pipeline' block (must be a dict).")
+    if not isinstance(runtime, dict):
+        errors.append("Missing or invalid 'runtime' block (must be a dict).")
+    if not isinstance(stages, dict):
+        errors.append("Missing or invalid 'stages' block (must be a dict).")
 
-    task_raw = pipeline.get("task")
-    if not task_raw:
-        errors.append("Missing pipeline.task (clustering/classification/regression/timeseries).")
-        return ValidationResult(False, errors, warnings)
+    if errors:
+        log.info("[validate_config_dict] FAILED early errors=%d", len(errors))
+        return ValidationResult(ok=False, errors=errors, warnings=warnings)
 
-    try:
-        task = normalize_problem_type(task_raw)
-    except Exception:
-        errors.append(f"Invalid pipeline.task='{task_raw}'.")
-        return ValidationResult(False, errors, warnings)
+    # ---- Pipeline basic fields ----
+    pipe_name = pipeline.get("name")
+    pipe_task_raw = pipeline.get("task")
+    if not pipe_name:
+        errors.append("pipeline.name is required.")
+    if not pipe_task_raw:
+        errors.append("pipeline.task is required.")
 
-    variables = pipeline.get("variables", {})
+    # Normalize task
+    task: Optional[ProblemType] = None
+    if pipe_task_raw:
+        try:
+            task = normalize_problem_type(pipe_task_raw)
+        except Exception as e:
+            errors.append(f"pipeline.task invalid: {pipe_task_raw}. Error: {e}")
+
+    # ---- Runtime ----
+    output_root = runtime.get("output_root")
+    if not output_root:
+        warnings.append("runtime.output_root missing; default 'out' will be used.")
+    log_level = runtime.get("log_level", "DEBUG")
+    if not isinstance(log_level, str):
+        errors.append("runtime.log_level must be a string (e.g. DEBUG/INFO).")
+
+    # ---- Stage2 presence ----
+    stage2 = stages.get("stage2_understanding")
+    if stage2 is None:
+        warnings.append("stages.stage2_understanding not found. Stage2 preview may not run.")
+    elif not isinstance(stage2, dict):
+        errors.append("stages.stage2_understanding must be a dict.")
+
+    # ---- Variables ----
+    variables = pipeline.get("variables") or {}
     if not isinstance(variables, dict):
-        errors.append("pipeline.variables must be a dict.")
-        return ValidationResult(False, errors, warnings)
+        errors.append("pipeline.variables must be a dict if provided.")
 
     dataset_path = variables.get("dataset_path")
+    # In preview mode, dataset_path must still exist because Stage2 must read CSV.
+    if mode == "preview" and not dataset_path:
+        errors.append("pipeline.variables.dataset_path is required in preview mode (Stage2 needs it).")
+
     target_col = variables.get("target_col")
     time_col = variables.get("time_col")
-    id_cols = _as_list(variables.get("id_cols"))
 
-    # ---- dataset_path ----
-    if not dataset_path:
-        errors.append("pipeline.variables.dataset_path is required.")
-    else:
-        p = Path(str(dataset_path))
-        if not p.exists():
-            msg = f"dataset_path does not exist: {p}"
-            # In preview we allow relative/wrong paths (user may adjust), but in run we must fail.
-            (errors if mode == "run" else warnings).append(msg)
-
-    # ---- task rules ----
-    if task == ProblemType.CLUSTERING:
-        if target_col is not None:
-            errors.append("clustering: target_col must be null/None.")
-        # time_col optional, id_cols optional
-
-    elif task in {ProblemType.CLASSIFICATION, ProblemType.REGRESSION}:
-        if mode == "run" and not target_col:
-            errors.append(f"{task.value}: target_col is required in run mode.")
-        if mode == "preview" and not target_col:
-            warnings.append(f"{task.value}: target_col is None in preview mode (Stage2 should suggest candidates).")
-
-    elif task == ProblemType.TIMESERIES:
+    # ---- Task-specific requirements ----
+    if task is not None:
         if mode == "run":
-            if not time_col:
-                errors.append("timeseries: time_col is required in run mode.")
-            if not target_col:
-                errors.append("timeseries: target_col is required in run mode.")
+            # stricter:
+            if task in (ProblemType.CLASSIFICATION, ProblemType.REGRESSION) and not target_col:
+                errors.append(f"target_col is required for task={task.value} in run mode.")
+            if task == ProblemType.TIMESERIES and not time_col:
+                errors.append("time_col is required for timeseries in run mode.")
+            # clustering never requires target
         else:
-            if not time_col:
-                warnings.append("timeseries: time_col is None in preview mode (Stage2 should suggest candidates).")
-            if not target_col:
-                warnings.append("timeseries: target_col is None in preview mode (Stage2 should suggest candidates).")
-
-    # ---- optional sanity ----
-    if id_cols:
-        if target_col and target_col in id_cols:
-            warnings.append("id_cols includes target_col (usually wrong).")
-        if time_col and time_col in id_cols:
-            warnings.append("id_cols includes time_col (usually wrong).")
-
-    # ---- stage presence (preview flow requires stage2) ----
-    if not isinstance(stages, dict):
-        errors.append("Missing or invalid 'stages' section (must be dict).")
-    else:
-        if "stage2_understanding" not in stages:
-            warnings.append("stages.stage2_understanding not found (preview flow expects it).")
+            # preview: allow missing target/time
+            if task in (ProblemType.CLASSIFICATION, ProblemType.REGRESSION) and not target_col:
+                warnings.append(f"target_col missing for {task.value} (ok in preview; Stage2 will suggest).")
+            if task == ProblemType.TIMESERIES and not time_col:
+                warnings.append("time_col missing for timeseries (ok in preview; Stage2 will suggest).")
 
     ok = len(errors) == 0
-    if ok:
-        log.info("validate_config: OK task=%s mode=%s", task.value, mode)
-    else:
-        log.error("validate_config: FAILED task=%s mode=%s errors=%d", task.value, mode, len(errors))
-        for e in errors:
-            log.error("  - %s", e)
-
+    log.info("[validate_config_dict] DONE ok=%s errors=%d warnings=%d", ok, len(errors), len(warnings))
     for w in warnings:
-        log.warning("  - %s", w)
+        log.debug("[validate_config_dict][warning] %s", w)
+    for e in errors:
+        log.debug("[validate_config_dict][error] %s", e)
 
     return ValidationResult(ok=ok, errors=errors, warnings=warnings)

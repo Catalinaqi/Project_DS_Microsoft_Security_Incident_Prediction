@@ -15,22 +15,23 @@ log = get_logger(__name__)
 # =============================================================================
 # Why this module exists
 # -----------------------------------------------------------------------------
-# This is the "load.py" of your config layer:
-# - loads a YAML pipeline preset
-# - merges notebook/runtime variables
-# - resolves ${var} placeholders recursively
+# "load.py" layer:
+# - Loads YAML files as Python dicts.
+# - Resolves ${var} placeholders using runtime_vars injected by notebook/builders.
+# - Keeps raw YAML reading concerns isolated from the rest of the pipeline.
 #
 # Program flow:
-# - Facade / make_config() calls load_and_resolve()
-# - schema_dto_config.ProjectConfig.from_dict() consumes loaded.resolved
+# - build_factory_config/build_preview_config:
+#     -> load_yaml() / load_and_resolve()
+#     -> returns resolved dict
+# - schema_dto_config.ProjectConfig.from_dict() consumes resolved dict
 #
 # Design patterns
-# - GoF: none.
+# - GoF: none
 # - Enterprise/Architectural:
 #   - Configuration Loader
-#   - Template-based configuration (${var} interpolation)
+#   - Configuration Templating (placeholder resolution)
 # =============================================================================
-
 
 _VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
@@ -162,7 +163,8 @@ def find_unresolved_placeholders(obj: Any) -> Tuple[bool, int]:
     return (count > 0, count)
 
 
-def load_and_resolve(path: str | Path, runtime_vars: Optional[Dict[str, Any]] = None) -> LoadedYaml:
+def load_and_resolve(path: str | Path,
+                     runtime_vars: Optional[Dict[str, Any]] = None) -> LoadedYaml:
     """
     Main entrypoint:
     - load YAML

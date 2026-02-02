@@ -1,7 +1,7 @@
 version: "1.0"
 
 pipeline:
-  name: "clustering_pipeline"
+  name: "clustering_pipeline_yaml"
   task: "clustering"
   objective: >
     End-to-end CRISP-ML pipeline for unsupervised clustering.
@@ -16,8 +16,10 @@ pipeline:
 
 runtime:
   random_seed: 42
-  output_root: "${output_root}" #"out"
+  output_root: "${output_root}" # "out"
   overwrite_artifacts: true
+  log_level: "DEBUG"        # DEBUG | INFO | WARNING | ERROR | CRITICAL
+
 
 # -----------------------------------------
 # PIPELINE STAGES

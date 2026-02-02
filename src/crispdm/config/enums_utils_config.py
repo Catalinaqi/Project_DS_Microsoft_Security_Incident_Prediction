@@ -10,12 +10,20 @@ log = get_logger(__name__)
 # =============================================================================
 # Why this module exists
 # -----------------------------------------------------------------------------
-# We use Enums to avoid "magic strings" across YAML/Notebook/Python.
-# This makes configuration safer and easier to validate.
+# Central place for "configuration enums" and normalization helpers.
+# - YAML is text -> we must convert strings into controlled enums.
+# - Keeps parsing/normalization logic consistent across the codebase.
+#
+# Program flow:
+# - load_loader_config.load_and_resolve() returns raw dicts
+# - schema_dto_config.ProjectConfig.from_dict() converts dicts -> typed DTOs
+# - normalize_* helpers are called during DTO building and validation
 #
 # Design patterns
-# - GoF: none (Enums are a language/tooling feature).
-# - Enterprise/Architectural: Type-safe configuration / Contract enforcement.
+# - GoF: none
+# - Enterprise/Architectural:
+#   - "Typed configuration" boundary (prevents invalid config values)
+#   - Defensive parsing (fail-fast)
 # =============================================================================
 
 
@@ -52,7 +60,7 @@ class ReadMode(str, Enum):
     CHUNKED = "chunked"
 
     def __str__(self) -> str:
-        log.debug("[Enum] ReadMode resolved: %s", self.name)
+        #log.debug("[Enum] ReadMode resolved: %s", self.name)
         return self.value
 
 
@@ -113,4 +121,26 @@ def normalize_problem_type(value: str | ProblemType) -> ProblemType:
         return out
     except Exception as e:
         log.error("normalize_problem_type: invalid value=%r error=%s", value, e)
+        raise
+
+def normalize_read_mode(value: str | ReadMode) -> ReadMode:
+    """
+    Normalize an incoming string/enum into ReadMode.
+
+    Why:
+    - Notebook may pass strings
+    - YAML contains strings
+    - internal code should use a stable enum
+    """
+    if isinstance(value, ReadMode):
+        log.debug("normalize_read_mode: already enum=%s", value.value)
+        return value
+
+    v = (value or "").strip().lower()
+    try:
+        out = ReadMode(v)
+        log.debug("normalize_read_mode: parsed value=%s -> %s", value, out.value)
+        return out
+    except Exception as e:
+        log.error("normalize_read_mode: invalid value=%r error=%s", value, e)
         raise
