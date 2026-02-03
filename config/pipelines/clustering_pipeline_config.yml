@@ -19,8 +19,6 @@ runtime:
   output_root: "${output_root}" # "out"
   overwrite_artifacts: true
   log_level: "DEBUG"        # DEBUG | INFO | WARNING | ERROR | CRITICAL
-
-
 # -----------------------------------------
 # PIPELINE STAGES
 # Objective: implement Stages 2 to 5 of CRISP-ML
@@ -34,18 +32,15 @@ stages:
     objective: >
       Load CSV + describe structure + data quality assessment + EDA.
       Stage 2 MUST NOT modify data (report-only).
-
     dataset_input:
       source_type: "csv"
       path: "${dataset_path}"
-
       # Optional CSV overrides (prefer putting them in datasets/*.yml)
       csv_params:
         sep: ","
         encoding: "utf-8"
         decimal: "."
         low_memory: true
-
       # For large datasets: work on sample/chunks for profiling & EDA.
       read_strategy:
         mode: "sample"                # full | sample | chunked
@@ -53,15 +48,14 @@ stages:
         sample_frac: null
         random_state: 42
         chunksize: 200000
-
     output_policy:
       save_all_as_png: true
-      figures_dir: "figures/stage2"
-      tables_png_dir: "tables_png/stage2"
+      #figures_dir: "figures/stage2"
+      #tables_png_dir: "tables_png/stage2"
+      save_all_tables_as_png: true
       dpi: 150
 
     steps:
-
       # 2.1 Data acquisition — CSV only (your scenario)
       step_2_1_data_acquisition:
         enabled: true

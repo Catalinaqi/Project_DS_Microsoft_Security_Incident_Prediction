@@ -128,6 +128,27 @@ def validate_config_dict(
     elif not isinstance(stage2, dict):
         errors.append("stages.stage2_understanding must be a dict.")
 
+    stage3 = stages.get("stage3_modeling")
+    if stage3 is None:
+        warnings.append("stages.stage3_modeling not found. Modeling stage may not run.")
+    elif not isinstance(stage3, dict):
+        errors.append("stages.stage3_modeling must be a dict.")
+
+    stage4 = stages.get("stage4_evaluation")
+    if stage4 is None:
+        warnings.append("stages.stage4_evaluation not found. Evaluation stage may not run.")
+    elif not isinstance(stage4, dict):
+        errors.append("stages.stage4_evaluation must be a dict.")
+
+    stage5 = stages.get("stage5_deployment")
+    if stage5 is None:
+        warnings.append("stages.stage5_deployment not found. Deployment stage may not run.")
+    elif not isinstance(stage5, dict):
+        errors.append("stages.stage5_deployment must be a dict.")
+
+
+
+
     # ---- Variables ----
     variables = pipeline.get("variables") or {}
     if not isinstance(variables, dict):

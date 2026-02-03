@@ -144,3 +144,25 @@ def normalize_read_mode(value: str | ReadMode) -> ReadMode:
     except Exception as e:
         log.error("normalize_read_mode: invalid value=%r error=%s", value, e)
         raise
+
+def normalize_log_level(value: str | LogLevel) -> LogLevel:
+    """
+    Normalize an incoming string/enum into LogLevel.
+
+    Why:
+    - Notebook may pass strings
+    - YAML contains strings
+    - internal code should use a stable enum
+    """
+    if isinstance(value, LogLevel):
+        log.debug("normalize_log_level: already enum=%s", value.value)
+        return value
+
+    v = (value or "").strip().upper()
+    try:
+        out = LogLevel(v)
+        log.debug("normalize_log_level: parsed value=%s -> %s", value, out.value)
+        return out
+    except Exception as e:
+        log.error("normalize_log_level: invalid value=%r error=%s", value, e)
+        raise
