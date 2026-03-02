@@ -73,3 +73,74 @@ Colonna/variabile in input al modello (numerica o categoriale) che descrive un i
 **Macro F1-score**
 Metrica di valutazione per classificazione: calcola F1 per ogni classe e poi fa la media “macro” (ogni classe pesa uguale). Utile quando non vuoi che la classe più frequente domini il risultato. ([scikit-learn.org][5])
 
+
+**XDR (Extended Detection and Response)**
+Categoria di soluzioni di sicurezza che **correlano e analizzano dati** provenienti da più fonti (endpoint, rete, cloud, email, identità, ecc.) per **rilevare minacce** e **supportare la risposta** in modo più completo rispetto a strumenti isolati.
+
+**Telemetria (Telemetry)**
+In cybersecurity indica i **dati raccolti automaticamente** dai sistemi e dagli strumenti di sicurezza: log, eventi, segnali, metriche, attività di rete, processi su endpoint, accessi, email, ecc. Serve per capire “cosa sta succedendo” e ricostruire contesto.
+
+**SOC (Security Operations Center)**
+Il team/centro operativo che monitora la sicurezza di un’organizzazione. Si occupa di **rilevare, analizzare, triagiare e gestire** incidenti (spesso 24/7), usando piattaforme SIEM/XDR e procedure operative.
+
+**Asset**
+Qualsiasi **risorsa di valore** per l’organizzazione che va protetta: server, PC, account, database, applicazioni, infrastruttura cloud, servizi email, reti, dati sensibili, ecc. Un “asset critico” è un elemento che, se compromesso o bloccato, può causare impatti gravi sul business.
+
+**Risposta guidata (Guided Response)**
+Approccio/sistema che **non automatizza completamente** la remediazione, ma **supporta l’analista** passo-passo con **raccomandazioni basate sul contesto** (dati correlati, storico, priorità, indicatori di compromissione) per decidere **quali azioni fare**, in che ordine e con quale urgenza.
+
+In pratica: invece di “chiudere automaticamente” un incidente, la risposta guidata propone azioni tipo:
+
+* verifiche consigliate (cosa controllare per confermare la minaccia),
+* azioni di contenimento (isolamento host, blocco IP, reset credenziali),
+* azioni di remediation (rimozione persistenza, patch, regole, cleanup),
+* note su rischi/impatti (evitare blocchi su asset critici).
+
+**Data Dictionary (GUIDE_Train) — con livello gerarchico**
+| #  | Colonna              | Tipo (DuckDB)                | Completezza | HierarchyLevel        | Key / Aggregation                         | Descrizione e utilità |
+| -- | -------------------- | ---------------------------- | ----------- | --------------------- | ------------------------------------------ | --------------------- |
+| 1  | Id                   | BIGINT                       | 100%        | INCIDENT (case id)     | (OrgId, IncidentId)                        | Identificatore del **caso/incidente** (case-level). **Non è univoco per riga**: si ripete su più record perché un incidente include più alert e più evidenze. Utile come ID alternativo del caso. |
+| 2  | OrgId                | BIGINT                       | 100%        | ALL                   | (OrgId, …)                                 | ID organizzazione/tenant. Utile per segmentazione, split stratificati e analisi per cliente. |
+| 3  | IncidentId           | BIGINT                       | 100%        | INCIDENT              | (OrgId, IncidentId)                        | Identificativo dell’incidente (caso). Raggruppa una o più alert. Base per modellare triage a livello incidente. |
+| 4  | AlertId              | BIGINT                       | 100%        | ALERT                 | (OrgId, AlertId)                           | Identificativo dell’alert all’interno dell’incidente. Un alert può avere più evidenze (più righe). |
+| 5  | Timestamp            | TIMESTAMP WITH TIME ZONE     | 100%        | ALERT/EVIDENCE         | group-by time / order-by time              | Momento dell’evento. Fondamentale per ordering, sequenze e analisi temporali (trend/time series). |
+| 6  | DetectorId           | BIGINT                       | 100%        | ALERT                 | (OrgId, AlertId)                           | ID del detector/regola che ha generato l’alert. Utile per pattern e stabilità/qualità del segnale. |
+| 7  | AlertTitle           | BIGINT                       | 100%        | ALERT                 | (OrgId, AlertId)                           | Titolo/descrizione dell’alert codificato (anonimizzato, non testo). Feature categoriale. |
+| 8  | Category             | VARCHAR                      | 100%        | ALERT                 | (OrgId, AlertId)                           | Categoria dell’alert (es. InitialAccess, Exfiltration). Feature chiave per classificazione/clustering. |
+| 9  | MitreTechniques      | VARCHAR                      | 44%         | ALERT                 | (OrgId, AlertId)                           | Tecniche MITRE ATT&CK (multi-valore). Spesso mancante; utile per interpretabilità e feature engineering. |
+| 10 | IncidentGrade        | VARCHAR                      | 100%        | INCIDENT (label)      | (OrgId, IncidentId)                        | **Etichetta di triage** dell’incidente (TruePositive / FalsePositive / BenignPositive). Confermato consistente per incidente. Target per classificazione. |
+| 11 | ActionGrouped        | VARCHAR                      | 0.046%      | ALERT                 | (OrgId, AlertId)                           | Azione di remediation aggregata (solo subset etichettato). Utile per task “remediation prediction”. |
+| 12 | ActionGranular       | VARCHAR                      | 0.046%      | EVIDENCE/ALERT         | (OrgId, AlertId)                           | Azione di remediation dettagliata. Molto sparsa; usare solo quando presente o per task secondario. |
+| 13 | EntityType           | VARCHAR                      | 100%        | EVIDENCE              | (OrgId, AlertId, EntityType)               | Tipo di evidenza/entità della riga (User, Ip, CloudLogonRequest, …). Spiega perché esistono più righe per lo stesso AlertId. |
+| 14 | EvidenceRole         | VARCHAR                      | 100%        | EVIDENCE              | (OrgId, AlertId, EvidenceRole)             | Ruolo dell’evidenza: Impacted (principale) vs Related (contesto). Utile per pesare/filtrare evidenze. |
+| 15 | DeviceId             | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, DeviceId)                 | ID dispositivo (anon.). Alta cardinalità; utile come conteggio/presenza (n_device per alert/incidente). |
+| 16 | Sha256               | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, Sha256)                   | Hash file (anon.). Alta cardinalità; utile in aggregazione (n_hash, presenza hash). |
+| 17 | IpAddress            | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, IpAddress)                | IP (anon.). Può variare tra evidenze dello stesso alert; utile per n_ips/n_countries e pattern geo. |
+| 18 | Url                  | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, Url)                      | URL (anon.). Utile come indicatore/contatore (n_url) più che come valore diretto. |
+| 19 | AccountSid           | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, AccountSid)               | Identificatore account (SID anon.). Altissima cardinalità; usare in aggregazione (n_accounts). |
+| 20 | AccountUpn           | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, AccountUpn)               | UPN account (anon.). Utile per raggruppare attività su identità (conteggi). |
+| 21 | AccountObjectId      | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, AccountObjectId)          | ObjectId (Azure AD) anon. Utile per correlare eventi cloud su identità. |
+| 22 | AccountName          | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, AccountName)              | Nome account codificato (anon.). Feature categoriale (da aggregare). |
+| 23 | DeviceName           | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, DeviceName)               | Nome device codificato (anon.). Utile per correlazione tra eventi dello stesso host. |
+| 24 | NetworkMessageId     | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, NetworkMessageId)         | ID messaggio rete/email correlato. Utile per linkare eventi (campagne, thread, ecc.). |
+| 25 | EmailClusterId       | DOUBLE                       | 1%          | EVIDENCE              | (OrgId, AlertId, EmailClusterId)           | Cluster email sospette (solo subset). Utile per phishing/email analytics; molto mancante. |
+| 26 | RegistryKey          | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, RegistryKey)              | Chiave di registro (anon.). Indica attività su host (tipico Windows); utile per pattern. |
+| 27 | RegistryValueName    | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, RegistryValueName)        | Nome del valore nel registro (anon.). Utile per correlazioni/pattern di persistenza. |
+| 28 | RegistryValueData    | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, RegistryValueData)        | Contenuto del valore di registro (anon.). Alta cardinalità; meglio usarlo in forma aggregata. |
+| 29 | ApplicationId        | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, ApplicationId)            | ID applicazione (anon.). Utile per contesto applicativo dell’evento. |
+| 30 | ApplicationName      | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, ApplicationName)          | Nome applicazione codificato (anon.). Feature categoriale (da aggregare). |
+| 31 | OAuthApplicationId   | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, OAuthApplicationId)       | ID OAuth app (contesto cloud). Utile per accessi cloud e correlazioni su app. |
+| 32 | ThreatFamily         | VARCHAR                      | 0.75%       | ALERT/EVIDENCE         | (OrgId, AlertId)                           | Famiglia minaccia (trojan/ransomware…). Molto sparsa; utile quando presente per interpretazione/feature. |
+| 33 | FileName             | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, FileName)                 | Nome file codificato (anon.). Utile per pattern su file (da aggregare). |
+| 34 | FolderPath           | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, FolderPath)               | Percorso file codificato (anon.). Utile per pattern di esecuzione/persistenza (da aggregare). |
+| 35 | ResourceIdName       | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, ResourceIdName)           | Identificatore risorsa cloud (anon.). Utile per correlare eventi su risorse cloud. |
+| 36 | ResourceType         | VARCHAR                      | 0.07%       | EVIDENCE              | (OrgId, AlertId, ResourceType)             | Tipo risorsa cloud. Quasi sempre mancante; utile solo nel subset cloud. |
+| 37 | Roles                | VARCHAR                      | 2.6%        | EVIDENCE              | (OrgId, AlertId, Roles)                    | Ruoli associati (admin/user…). Sparso ma informativo (privilegi/rischio). |
+| 38 | OSFamily             | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, OSFamily)                 | Famiglia OS codificata (Windows/Linux/…). Utile per segmentazione e pattern. |
+| 39 | OSVersion            | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, OSVersion)                | Versione OS codificata. Utile come feature categoriale/di compatibilità. |
+| 40 | AntispamDirection    | VARCHAR                      | 1.8%        | EVIDENCE              | (OrgId, AlertId, AntispamDirection)        | Direzione/contesto antispam (subset email). Utile quando presente. |
+| 41 | SuspicionLevel       | VARCHAR                      | 15%         | ALERT/EVIDENCE         | (OrgId, AlertId)                           | Livello di sospetto/“confidence”. Sparso, ma utile come feature quando presente. |
+| 42 | LastVerdict          | VARCHAR                      | 24%         | ALERT/EVIDENCE         | (OrgId, AlertId)                           | Verdettto finale (Blocked/Suspicious/Benign…). Utile per analisi errori e feature quando presente. |
+| 43 | CountryCode          | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, CountryCode)              | Codice paese (anon.). Può cambiare tra evidenze dello stesso alert; utile per n_countries e pattern geo. |
+| 44 | State                | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, State)                    | Stato/regione (anon.). Utile in aggregazione geografica. |
+| 45 | City                 | BIGINT                       | 100%        | EVIDENCE              | (OrgId, AlertId, City)                     | Città (anon.). Utile in aggregazione (n_cities), può variare tra evidenze dello stesso alert. |
