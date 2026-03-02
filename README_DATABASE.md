@@ -39,7 +39,7 @@ Il benchmark principale del dataset è prevedere le decisioni storiche di triage
 
 Per questo scopo, Kaggle fornisce un training set (es. `GUIDE_Train.csv`) con feature già pronte per modellare la predizione di triage. La metrica raccomandata è il **Macro F1-score** (utile quando le classi sono sbilanciate o quando vuoi trattare tutte le classi in modo “equilibrato”), insieme a precision e recall. ([scikit-learn.org][5])
 
-### Come lo userò in questo progetto (visione generale)
+### Come sarà usata in questo progetto (visione generale)
 
 Nel repository il dataset sarà usato in più modalità, con un taglio “data science end-to-end”:
 
