@@ -137,7 +137,8 @@ def build_preview_config(
         "target_col": notebook_vars.get("target_col"),
         "time_col": notebook_vars.get("time_col"),
         "id_cols": notebook_vars.get("id_cols"),
-        "output_root": notebook_vars.get("output_root"),
+        "output_root": notebook_vars.get("output_root") or "out",
+
     }
 
     log.info("Start [load_and_resolve.load_loader_config] with path='%s' and runtime_vars=%s", pipeline_config_path,runtime_vars)
@@ -148,6 +149,9 @@ def build_preview_config(
     # Validate in preview mode:
     log.info("Start [validate_validator_config.validate_config_dict] in preview mode")
     vr = validate_config_dict(resolved, mode="preview")
+    log.info("End [validate_validator_config.validate_config_dict] ... Validation ok=%s errors=%d warnings=%d",
+             vr.ok, len(vr.errors), len(vr.warnings))
+
     vr.raise_if_invalid()
 
     # Convert into typed DTO:
@@ -163,3 +167,129 @@ def build_preview_config(
     log.info("[build_preview_config] DONE task=%s audit=%s",
              cfg.pipeline.task.value, audit_path)
     return BuiltConfig(project_config=cfg, resolved_dict=resolved, audit_path=audit_path)
+
+
+
+def build_run_config(
+        *,
+        pipeline_config_path: str | Path,
+        dataset_config_path: str | Path,
+        dataset_key: str,
+        notebook_vars: Optional[Dict[str, Any]] = None,
+) -> BuiltConfig:
+    """
+    RUN flow:
+    - Requires required columns depending on task (validator en mode='run')
+    - Validates with mode='run'
+    - Builds full ProjectConfig for stages 2–5
+    """
+    notebook_vars = notebook_vars or {}
+    pipeline_config_path = Path(pipeline_config_path)
+    dataset_config_path = Path(dataset_config_path)
+
+    dataset_entry = _load_dataset_entry(dataset_config_path, dataset_key)
+    runtime_vars = _build_runtime_vars(dataset_entry, notebook_vars)
+
+    log.info(
+        "build_run_config: pipeline=%s dataset=%s key=%s runtime_vars=%s",
+        pipeline_config_path, dataset_config_path, dataset_key, runtime_vars
+    )
+
+    loaded = load_and_resolve(pipeline_config_path, runtime_vars=runtime_vars)
+    resolved = loaded.resolved
+
+    resolved = apply_dataset_defaults(resolved, dataset_entry)
+
+    vr = validate_config_dict(resolved, mode="run")
+    vr.raise_if_invalid()
+
+    cfg = ProjectConfig.from_dict(resolved)
+
+    audit_path = save_config_used(
+        resolved,
+        task=cfg.pipeline.task,
+        output_root=cfg.runtime.output_root,
+    )
+
+    return BuiltConfig(project_config=cfg, resolved_dict=resolved, audit_path=audit_path)
+
+
+def apply_dataset_defaults(resolved: Dict[str, Any], dataset_entry: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Apply dataset_config.yml defaults into the resolved pipeline dict.
+    Only fills missing sections (does NOT override explicit pipeline config).
+
+    Dataset entry expected (examples):
+    - csv_params
+    - stage2_read_strategy
+    - stage3_read_strategy
+    - columns_hint
+    - suggestion_policy
+    - test_has_target
+    """
+    stages = _ensure_dict(resolved.get("stages"))
+    s2 = _ensure_dict(stages.get("stage2_understanding"))
+    s3 = _ensure_dict(stages.get("stage3_preparation"))
+
+    # -------- Stage2 defaults --------
+    #dataset_input = _ensure_dict(s2.get("dataset_input"))
+    #_set_if_missing(dataset_input, "csv_params", _ensure_dict(dataset_entry.get("csv_params")))
+    #s2["dataset_input"] = dataset_input
+
+    #_set_if_missing(s2, "read_strategy", _ensure_dict(dataset_entry.get("stage2_read_strategy")))
+    dataset_input = _ensure_dict(s2.get("dataset_input"))
+    _set_if_missing(dataset_input, "csv_params", _ensure_dict(dataset_entry.get("csv_params")))
+    _set_if_missing(dataset_input, "read_strategy", _ensure_dict(dataset_entry.get("stage2_read_strategy")))
+    s2["dataset_input"] = dataset_input
+
+
+
+
+    # hints for stage2 logic (suggestions)
+    s2_steps = _ensure_dict(s2.get("steps"))
+    _set_if_missing(s2_steps, "columns_hint", _ensure_dict(dataset_entry.get("columns_hint")))
+    _set_if_missing(s2_steps, "suggestion_policy", _ensure_dict(dataset_entry.get("suggestion_policy")))
+    _set_if_missing(s2_steps, "test_has_target", bool(dataset_entry.get("test_has_target", False)))
+
+    s2["steps"] = s2_steps
+    stages["stage2_understanding"] = s2
+
+
+
+    # -------- Stage3 defaults --------
+    #_set_if_missing(s3, "read_strategy", _ensure_dict(dataset_entry.get("stage3_read_strategy")))
+    s3 = _ensure_dict(stages.get("stage3_preparation"))
+    s3_input = _ensure_dict(s3.get("dataset_input"))
+    _set_if_missing(s3_input, "read_strategy", _ensure_dict(dataset_entry.get("stage3_read_strategy")))
+    s3["dataset_input"] = s3_input
+    stages["stage3_preparation"] = s3
+
+    #stages["stage3_preparation"] = s3
+
+    # ---------------------------------
+
+    resolved["stages"] = stages
+    return resolved
+
+
+def _ensure_dict(x: Any) -> Dict[str, Any]:
+    return x if isinstance(x, dict) else {}
+
+
+def _set_if_missing(d: Dict[str, Any], key: str, value: Any) -> None:
+    if key not in d or d.get(key) in (None, "", {}, []):
+        d[key] = value
+
+def _build_runtime_vars(dataset_entry: Dict[str, Any], notebook_vars: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Centralize runtime vars used to resolve ${...} placeholders in pipeline YAML.
+    """
+    dataset_path = notebook_vars.get("dataset_path") or _select_dataset_path(dataset_entry, split="train")
+
+    return {
+        "dataset_path": dataset_path,
+        "target_col": notebook_vars.get("target_col"),
+        "time_col": notebook_vars.get("time_col"),
+        "id_cols": notebook_vars.get("id_cols"),
+        "output_root": notebook_vars.get("output_root") or "out",
+    }

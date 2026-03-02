@@ -179,7 +179,9 @@ def load_and_resolve(path: str | Path,
     resolved = resolve_placeholders(raw, variables)
 
     has_unresolved, n = find_unresolved_placeholders(resolved)
-    print("Unresolved placeholders?", has_unresolved, "count:", n)
+    log.debug("load_and_resolve: unresolved placeholders=%s", has_unresolved)
+    #print("Unresolved placeholders?", has_unresolved, "count:", n)
+    log.debug("load_and_resolve: unresolved placeholders found=%d", n)
     if has_unresolved:
         log.warning("load_and_resolve: unresolved placeholders found=%d (check notebook vars)", n)
     else:

@@ -68,7 +68,7 @@ def save_table_as_image(
     # ===========================
     # Insert sequential index column "No."
     # ===========================
-    df_to_plot.insert(0, "No.", range(1, len(df_to_plot) + 1))
+    df_to_plot.insert(0, "Nr.", range(1, len(df_to_plot) + 1))
 
     # ===========================
     # Adaptive figure size
